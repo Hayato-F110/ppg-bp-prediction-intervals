@@ -76,6 +76,7 @@ STEPS = (
     Step("check_fiducials_vitaldb", "optional", "Fiducial points on a VitalDB sample", optional=True),
     Step("check_e_wave_timing", "optional", "Timing of the e wave by pulse rate", optional=True),
     Step("explore_required_width", "optional", "Interval width needed for nominal coverage by band", optional=True),
+    Step("explore_clinical_threshold", "optional", "Intervals against the 140 mmHg threshold", optional=True),
 )
 
 
