@@ -1,0 +1,81 @@
+[project]
+name = "cardio-research001"
+version = "0.1.0"
+description = "Prediction intervals for calibration-free cuffless blood pressure from the PPG: patient-level coverage within and across datasets"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "pyarrow",
+    "scikit-learn",
+    "lightgbm",
+    "shap",
+    "matplotlib",
+    "vitaldb",
+    "wfdb",
+    "pyyaml",
+    "torch>=2.14.1",
+    "optuna>=5.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+notebooks = [
+    "ipykernel>=7.4.0",
+    "jupytext>=1.19.6",
+]
+
+[tool.deptry.per_rule_ignores]
+# pyarrow is not imported, but pandas needs it to read and write the parquet files
+DEP002 = ["pyarrow"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ppg_bp"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+# A broad set of rules: pycodestyle, pyflakes, bugbear, import order, pyupgrade, ruff, security (bandit), returns,
+# simplification, comprehensions, complexity, pylint, naming, unused arguments, performance, pathlib, numpy, pandas.
+select = ["E", "W", "F", "B", "I", "UP", "RUF", "S", "RET", "SIM", "C4", "C90", "PL", "N", "ARG", "PERF", "PTH", "NPY", "PD"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # typographic characters (en dash, minus sign, ≥) are intended in labels and text
+]
+
+[tool.ruff.lint.pylint]
+# Analysis functions take a dataset, its settings and a few choices; more than 8 arguments is treated as too many.
+max-args = 8
+max-positional-args = 8
+
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*" = ["E402"]
+# Tests use assert, and literal values are the expected results.
+"tests/*" = ["S101", "PLR2004"]
+
+[tool.pyright]
+include = ["src", "scripts", "tests"]
+typeCheckingMode = "standard"
+pythonVersion = "3.14"
+# The analysis scripts index pandas tables in ways whose result type pyright cannot infer without pandas stubs
+# (and the available stubs report even more such cases). In scripts/ only, these three rules are therefore
+# warnings; src/ and tests/ are checked with all rules as errors.
+executionEnvironments = [
+  { root = "scripts", reportAttributeAccessIssue = "warning", reportArgumentType = "warning", reportCallIssue = "warning", reportIndexIssue = "warning", reportReturnType = "warning", reportGeneralTypeIssues = "warning", reportOperatorIssue = "warning", reportAssignmentType = "warning" },
+  { root = "src" },
+  { root = "tests", extraPaths = ["."] },
+]

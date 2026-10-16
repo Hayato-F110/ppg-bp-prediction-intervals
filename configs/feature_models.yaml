@@ -1,0 +1,20 @@
+# Feature models. Fitting and validation use only the training patients.
+# Test and calibration patients are not used (analysis plan, Section 3).
+
+max_segments_per_subject: 400   # analysis plan, Section 3 (the same limit as PulseDB)
+validation_fraction: 0.2        # share of training patients held out for validation (by patient)
+targets: [sbp, dbp, mbp]
+
+lightgbm:
+  objective: regression
+  n_estimators: 3000
+  learning_rate: 0.05
+  num_leaves: 63
+  min_child_samples: 200
+  subsample: 0.8
+  subsample_freq: 1
+  colsample_bytree: 0.8
+  reg_lambda: 1.0
+  early_stopping_rounds: 100
+  n_jobs: 6
+  verbose: -1

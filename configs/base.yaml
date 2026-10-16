@@ -1,0 +1,20 @@
+# Settings shared by all analyses. Analysis-specific settings are in the other files of configs/.
+seed: 20261013
+
+paths:
+  raw: data/raw
+  processed: data/processed
+  results: results
+
+segment:
+  length_sec: 10
+  fs_hz: 125
+
+# patient-level split ratios (training / calibration / test)
+split:
+  train: 0.6
+  calibration: 0.2
+  test: 0.2
+
+# nominal coverage
+coverage_levels: [0.80, 0.90, 0.95]

@@ -1,0 +1,19 @@
+# Waveform model. Fitting and validation use only the training patients (analysis plan, Section 3).
+# Training segments and validation patients are chosen as for the feature models (configs/feature_models.yaml).
+
+max_segments_per_subject: 400
+validation_fraction: 0.2
+targets: [sbp, dbp, mbp]
+
+# the quantiles at the ends of nominal 80, 90 and 95% intervals are learned as well, for CQR
+quantiles: [0.025, 0.05, 0.10, 0.90, 0.95, 0.975]
+
+channels: [32, 48, 64, 96]
+batch_size: 256
+learning_rate: 0.002
+weight_decay: 0.0001
+max_epochs: 30
+segments_per_epoch: 150000        # segments per epoch (drawn at random from the training segments each time)
+patience: 5                       # stop after this many epochs without improvement of the validation SBP MAE
+early_stopping_per_subject: 50    # segments per validation patient used for early stopping
+threads: 6

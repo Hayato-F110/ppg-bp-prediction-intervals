@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the paper and this software."
+title: "Prediction intervals for calibration-free cuffless blood pressure: analysis code"
+authors:
+  - family-names: Fukushima
+    given-names: Hayato
+license: MIT
+type: software
+abstract: >-
+  Analysis code for a study of conformal prediction intervals for blood pressure estimated from the
+  photoplethysmogram (PPG) alone, without per-person calibration. It evaluates patient-level coverage within
+  VitalDB and on MIMIC-III. Data are not included; the code downloads them from the original sources.
+keywords:
+  - cuffless blood pressure
+  - photoplethysmography
+  - conformal prediction
+  - prediction interval
+  - dataset shift
+version: 1.0.0
+repository-code: "https://github.com/Hayato-F110/ppg-bp-prediction-intervals"
+# doi: added after the first Zenodo release

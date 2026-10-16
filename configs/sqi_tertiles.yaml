@@ -1,0 +1,7 @@
+# Tertile cut points of signal quality (sqi_template), from the training patients only (analysis plan, Section 4.4).
+# Written by scripts/summarise_features.py; do not edit by hand.
+sqi_template:
+  lower: 0.9894042809804281
+  n_segments: 2199449
+  n_subjects: 1880
+  upper: 0.9970789551734924
