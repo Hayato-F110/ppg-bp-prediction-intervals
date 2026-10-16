@@ -93,8 +93,8 @@ def apply_style() -> None:
             "legend.fontsize": 7,
             "text.color": INK,
             "axes.labelcolor": INK_SECONDARY,
-            "xtick.color": MUTED,
-            "ytick.color": MUTED,
+            "xtick.color": INK_SECONDARY,  # darker than MUTED so that tick labels stay legible in print
+            "ytick.color": INK_SECONDARY,
             "axes.edgecolor": AXIS,
             "axes.linewidth": 0.8,
             "axes.spines.top": False,

@@ -90,7 +90,7 @@ def miss_panel(ax, split):
         if above[k] >= 1:
             label(ax, half_up(above[k]), (k, above[k]), (0, 2))
         if below[k] >= 1:
-            label(ax, half_up(below[k]), (k, -below[k]), (0, -8))
+            label(ax, "−" + half_up(below[k]), (k, -below[k]), (0, -8))  # below the axis: negative share
     ax.axhline(0, color=AXIS, linewidth=1.0)
     ax.set_xticks(x, BAND_LABELS, rotation=30)
     ax.set_ylim(-40, 85)

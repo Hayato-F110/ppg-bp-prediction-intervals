@@ -146,7 +146,7 @@ def recalibration_figure(table, source, name, out_path, level=0.9, model="lightg
         ax.set_title(title, loc="left")
     for ax in axes[:2]:
         ax.axhline(100 * level, color=INK, linewidth=1.0, linestyle="--")
-        ax.set_ylim(0, 105)
+        ax.set_ylim(40, 105)  # all values lie above 40%; a 0-100 axis left most of the panel empty
     shift_path = Path(out_path).parents[1] / "review" / "recalibration_shift.csv"
     if shift_path.exists():
         offset_corrected_lines(axes, shift_path)
