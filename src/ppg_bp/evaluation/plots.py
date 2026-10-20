@@ -53,12 +53,16 @@ def signed(value: float, digits: int = 1) -> str:
     return ("−" if rounded < 0 else "+" if rounded > 0 else "") + text
 
 
-def save_figure(fig: Figure, path: Path) -> None:
+def save_figure(fig: Figure, path: Path, panels: ArrayLike | None = None) -> None:
     """Save the figure as PNG (200 dpi) and as SVG, PDF and EPS (vector) files of the same name.
 
     The .docx of the paper uses the SVG and the LaTeX version the PDF (sharp at any size). EPS is the format IOP
     recommends for submission. The PNG is for checking and for tools without vector support.
+    panels: the axes of a figure with several parts, in reading order; their titles get the labels (a), (b), ...,
+    which IOP asks for and which the captions use.
     """
+    for letter, ax in zip("abcdefgh", np.ravel(panels) if panels is not None else [], strict=False):
+        ax.set_title(f"({letter}) {ax.get_title(loc='left')}".rstrip(), loc="left")
     fig.savefig(path, dpi=200)
     for suffix in (".svg", ".pdf", ".eps"):
         fig.savefig(Path(path).with_suffix(suffix))

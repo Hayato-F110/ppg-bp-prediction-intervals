@@ -8,7 +8,11 @@ Segments, reference values and exclusion rules are those of VitalDB (src/ppg_bp/
 The database is 2.4 TB, so subjects are visited in a random order and at most MAX_HOURS hours per subject are read
 from records with both PLETH and ABP. If stopped, a rerun skips the subjects already done.
 
-usage: uv run python -X utf8 scripts/build_mimic_segments.py [--subjects 1000] [--hours-limit 7] [--workers 4]
+The subjects of the paper were those reached before a time limit, so they depended on download speed. To use the
+same subjects, pass the published list (data_lists/mimic3wdb_subjects.csv) with --subject-list.
+
+usage: uv run python -X utf8 scripts/build_mimic_segments.py --subject-list data_lists/mimic3wdb_subjects.csv
+       uv run python -X utf8 scripts/build_mimic_segments.py [--subjects 1000] [--hours-limit 7] [--workers 4]
 output: data/processed/mimic3wdb/segments/<subject>.npz, subject_summary.csv
 log: results/logs/mimic_build.log
 """
@@ -54,6 +58,16 @@ def list_records() -> dict:
     for line in lines:
         subjects.setdefault(line.split("/")[1], []).append(line)
     return subjects
+
+
+def listed_records(path: Path) -> dict:
+    """Subject -> [record] for the subjects of a published list (scripts/export_id_lists.py) with outcome ok.
+
+    Within a record, the segments read are fixed (the first ones with both signals, up to MAX_HOURS), so reading the
+    same record gives the same 10-s segments.
+    """
+    with path.open(encoding="utf-8") as f:
+        return {row["subject"]: [row["record"]] for row in csv.DictReader(f) if row["status"] == "ok"}
 
 
 def read_segment(seg_name: str, pn_dir: str, header, take: int):
@@ -178,6 +192,13 @@ def main():
     parser.add_argument("--hours-limit", type=float, default=7.0, help="after this many hours, start no new subject")
     parser.add_argument("--workers", type=int, default=6, help="parallel connections (16 were refused on 2026-10-13)")
     parser.add_argument("--max-tried", type=int, default=None, help="maximum number of subjects to try (for testing)")
+    parser.add_argument(
+        "--subject-list",
+        type=Path,
+        default=None,
+        help="read only the subjects of this list (data_lists/mimic3wdb_subjects.csv) with outcome ok, from the record "
+        "given there; this reproduces the subjects of the paper, whose selection depended on download speed",
+    )
     args = parser.parse_args()
     # wfdb (https, via requests) sets no timeout; without one a stalled connection waits forever
     socket.setdefaulttimeout(600)
@@ -193,8 +214,13 @@ def main():
         with summary_path.open("w", encoding="utf-8", newline="") as f:
             csv.DictWriter(f, FIELDS).writeheader()
 
-    subjects = list_records()
-    order = np.random.default_rng(CONFIG["seed"]).permutation(sorted(subjects))
+    if args.subject_list:
+        subjects = listed_records(args.subject_list)
+        order = list(subjects)  # the order of the list (the order visited in the paper)
+        args.subjects, args.hours_limit = len(subjects), float("inf")  # read every listed subject
+    else:
+        subjects = list_records()
+        order = np.random.default_rng(CONFIG["seed"]).permutation(sorted(subjects))
     todo = [s for s in order if s not in done][: args.max_tried]
     n_ok = sum(1 for r in done.values() if int(r["ok"]) > 0)
     log(f"=== start: {len(subjects)} subjects, {len(done)} done ({n_ok} with kept segments), target {args.subjects}")

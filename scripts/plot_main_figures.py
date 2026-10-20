@@ -110,7 +110,7 @@ def accuracy(results: Path, out_path: Path):
     )
     mae_panel(axes[0], metrics)
     error_panel(axes[1], error_by_true_band(test))
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 
@@ -229,7 +229,7 @@ def subgroups(results: Path, out_path: Path, level=0.9):
 
 
 def kept_error_panel(ax, vitaldb: pd.DataFrame):
-    """Left panel of Fig. 7: error of the kept estimates (their coverage is in Table S11)."""
+    """Fig. 7(a): error of the kept estimates (their coverage is in the supplementary data, sheet withholding)."""
     for column, name, marker in (("sd", "SD of error", "o"), ("mae", "Mean absolute error", "s")):
         ax.plot(
             100 * vitaldb.accepted,
@@ -291,7 +291,7 @@ def withholding(results: Path, out_path: Path):
     fig, axes = plt.subplots(1, 2, figsize=(PAGE_WIDTH, 2.7), constrained_layout=True, gridspec_kw={"wspace": 0.12})
     kept_error_panel(axes[0], vitaldb)
     kept_share_panel(axes[1], vitaldb, mimic)
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 
@@ -318,7 +318,7 @@ def supp_bland_altman(results: Path, out_path: Path):
     colorbar.outline.set_visible(False)
     if colorbar.solids is not None:
         colorbar.solids.set_rasterized(False)
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 
@@ -345,7 +345,7 @@ def supp_slope_curve(results: Path, out_path: Path, residual_sd=9.6, slope=0.30)
     for ax in axes:
         ax.set_xlabel("Slope b of the estimate on the true SBP")
     axes[1].legend(frameon=False, loc="lower left")  # the coverage panel has no free corner
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 

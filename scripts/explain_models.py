@@ -146,7 +146,7 @@ def plot_importance(importance, out_path) -> None:
         ax.grid(axis="y", visible=False)
         ax.set_xlim(0, top.max() * 1.18)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
 
 
 def main():

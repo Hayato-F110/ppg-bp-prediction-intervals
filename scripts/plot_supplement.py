@@ -67,7 +67,7 @@ def coverage_by_band() -> None:
     axes[0].set_ylim(0, 105)
     axes[0].set_ylabel("Patient-level coverage (%)")
     axes[0].legend(frameon=False, loc="lower center")
-    save_figure(fig, FIGURES / "supp_coverage_by_band.png")
+    save_figure(fig, FIGURES / "supp_coverage_by_band.png", panels=axes)
     plt.close(fig)
 
 
@@ -134,7 +134,7 @@ def differences() -> None:
     )
     forest(axes[0], methods, "Between methods, feature model")
     forest(axes[1], models, "Waveform model minus feature model")
-    save_figure(fig, FIGURES / "supp_differences.png")
+    save_figure(fig, FIGURES / "supp_differences.png", panels=axes)
     plt.close(fig)
 
 
@@ -182,7 +182,7 @@ def reference_reading() -> None:
     axes[1].set_ylabel("Patient-level coverage (%)")
     handles, names = axes[1].get_legend_handles_labels()
     axes[1].legend(handles[:2], names[:2], frameon=False, loc="lower right")  # colour = method; line style = dataset
-    save_figure(fig, FIGURES / "supp_reference_reading.png")
+    save_figure(fig, FIGURES / "supp_reference_reading.png", panels=axes)
     plt.close(fig)
 
 

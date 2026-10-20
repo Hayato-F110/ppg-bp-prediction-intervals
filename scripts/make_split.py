@@ -15,6 +15,26 @@ from ppg_bp.data.segmentation import REASONS
 from ppg_bp.data.split import SPLIT_NAMES, assert_no_subject_overlap, split_subjects
 
 PRINT_LOW, PRINT_HIGH = 100, 140  # SBP limits (mmHg) of the summary printed for each part
+# The split of the paper (case ID, subject ID, part; scripts/export_id_lists.py). A download made later may differ
+# slightly (failed or updated cases), so the published split is used and the differences are reported.
+PUBLISHED_SPLIT = PROJECT_ROOT / "data_lists" / "vitaldb_split.csv"
+
+
+def use_published_split(table: pd.DataFrame) -> pd.DataFrame:
+    """Keep the cases of the published split, with its parts; report how the seeded split compares."""
+    published = pd.read_csv(PUBLISHED_SPLIT)
+    keys = ["caseid", "subjectid"]
+    merged = table.merge(published, on=keys, how="outer", suffixes=("", "_published"), indicator=True)
+    only_here = int((merged["_merge"] == "left_only").sum())
+    only_published = int((merged["_merge"] == "right_only").sum())
+    both = merged[merged["_merge"] == "both"]
+    differ = int((both["split"] != both["split_published"]).sum())
+    print(
+        f"published split: {len(published)} cases; {only_here} cases here not in it (dropped), "
+        f"{only_published} of its cases missing here, {differ} cases where the seeded split differs (published used)"
+    )
+    kept = table.merge(published, on=["caseid", "subjectid"], suffixes=("_seeded", ""))
+    return kept.drop(columns="split_seeded")
 
 
 def main():
@@ -47,6 +67,8 @@ def main():
 
     split = split_subjects(table["subjectid"], config["split"], config["seed"])
     table["split"] = table["subjectid"].map(split)
+    if PUBLISHED_SPLIT.exists():
+        table = use_published_split(table)
     assert_no_subject_overlap(table)
     table.to_csv(out_dir / "split.csv", index=False)
 

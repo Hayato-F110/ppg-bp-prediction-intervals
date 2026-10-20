@@ -75,12 +75,12 @@ def coverage_figure(source, target, name, out_path, level=0.9):
         fontsize=MIN_TEXT,
         color=INK,
     )
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 
 def recalibration_lines(ax, table, column, scale):
-    """Mean over the random draws (the spread between draws is in Table S10)."""
+    """Mean over the random draws (the spread between draws is in the supplementary data, sheet recalibration)."""
     for method, method_name, color, marker in METHODS:
         grouped = table[table.method == method].groupby("subjects")[column]
         x = np.array(sorted(grouped.groups))
@@ -157,7 +157,7 @@ def recalibration_figure(table, source, name, out_path, level=0.9, model="lightg
     fig.legend(handles, labels, frameon=False, loc="outside lower center", ncol=4, fontsize=MIN_TEXT)
     source_width_lines(axes[2], source)
     axes[2].set_ylim(0, None)
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 

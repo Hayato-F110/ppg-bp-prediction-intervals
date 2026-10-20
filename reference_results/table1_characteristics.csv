@@ -1,0 +1,12 @@
+,VitalDB: training,VitalDB: calibration,VitalDB: test,MIMIC-III
+Setting,surgery,surgery,surgery,intensive care
+PPG sampling rate as recorded (Hz),500,500,500,125
+Patients,"1,880",627,627,416
+Segments (10 s),"2,199,449","730,166","724,202","53,928"
+"Age (years), median (IQR)",61 (51–70),61 (50–70),60 (49–70),not used
+"Female, n (%)",835 (44%),293 (47%),292 (47%),not used
+"Body mass index (kg/m²), median (IQR)",23 (21–25),23 (20–25),23 (21–25),not used
+"SBP (mmHg), mean ± SD",117.2 ± 20.1,118.3 ± 19.7,117.5 ± 20.0,125.3 ± 25.6
+"DBP (mmHg), mean ± SD",62.7 ± 12.7,63.7 ± 12.2,62.6 ± 12.7,63.0 ± 13.5
+Segments with SBP < 90 / ≥ 160 mmHg (%),6.7 / 2.8,5.6 / 2.8,6.3 / 2.8,6.9 / 10.2
+"Pulse rate (per minute), mean ± SD",73.2 ± 15.4,73.0 ± 15.7,73.4 ± 15.4,86.9 ± 20.0

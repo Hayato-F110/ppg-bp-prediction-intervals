@@ -1,6 +1,6 @@
 [project]
-name = "cardio-research001"
-version = "0.1.0"
+name = "ppg-bp-prediction-intervals"
+version = "1.1.0"
 description = "Prediction intervals for calibration-free cuffless blood pressure from the PPG: patient-level coverage within and across datasets"
 requires-python = ">=3.14,<3.15"
 dependencies = [
@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml",
     "torch>=2.14.1",
     "optuna>=5.0.0",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]

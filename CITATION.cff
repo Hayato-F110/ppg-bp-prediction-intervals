@@ -17,6 +17,6 @@ keywords:
   - conformal prediction
   - prediction interval
   - dataset shift
-version: 1.0.0
+version: 1.1.0
 repository-code: "https://github.com/Hayato-F110/ppg-bp-prediction-intervals"
-doi: "10.5281/zenodo.23513091"  # version v1.0.0; all versions: 10.5281/zenodo.23513090
+doi: "10.5281/zenodo.23513090"  # all versions (the concept DOI); each release on Zenodo also has its own DOI

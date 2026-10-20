@@ -1,4 +1,4 @@
-"""Fig. 3 (coverage and direction of misses by true SBP) and Fig. S2 (number of calibration patients).
+"""Fig. 3 (coverage and direction of misses by true SBP) and fig. S6 (number of calibration patients).
 
 usage: uv run python -X utf8 scripts/plot_conformal.py
 input: results/conformal/coverage.csv, calibration_size.csv
@@ -116,7 +116,7 @@ def coverage_by_band(coverage, out_path, level=0.9, model="lightgbm"):
     )
     coverage_panel(axes[0], rows, split, level, out_path)
     miss_panel(axes[1], split)
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 
@@ -161,7 +161,7 @@ def calibration_size(table, out_path, level=0.9):
     for ax in axes:
         ax.legend(frameon=False)
     # the caption notes that the closest earlier study used 45 calibration patients
-    save_figure(fig, out_path)
+    save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
 

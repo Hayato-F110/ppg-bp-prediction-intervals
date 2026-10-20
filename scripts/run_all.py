@@ -4,8 +4,9 @@ Each step runs `python -X utf8 scripts/<name>.py` from the project root and stop
 The wall-clock time of every step is appended to results/logs/run_all_times.csv.
 
 Steps that download data (VitalDB, MIMIC-III) take hours and need a network connection; they are skipped
-unless --download is given. The patient split (make_split) is fixed in data/processed/vitaldb/split.csv
-and is skipped when that file exists.
+unless --download is given. The patients of the paper are fixed by the lists in data_lists/: make_split uses the
+published split, and build_mimic_segments reads the published MIMIC-III subjects. make_split is skipped when
+data/processed/vitaldb/split.csv exists.
 
 usage:
     uv run python scripts/run_all.py --list
@@ -36,6 +37,11 @@ class Step:
     download: bool = False
     optional: bool = False
     isolated: bool = False  # run with -I because the step reads downloaded third-party files
+    label: str = ""  # name of the step when one script runs more than once (default: the script name)
+
+    @property
+    def key(self) -> str:
+        return self.label or self.name
 
 
 STEPS = (
@@ -46,6 +52,16 @@ STEPS = (
     Step("summarise_features", "features", "Missing rates, distributions, signal-quality tertiles"),
     Step("train_feature_models", "models", "Median, linear regression and LightGBM: training and validation"),
     Step("train_waveform_model", "models", "One-dimensional CNN: training and validation"),
+    *(
+        Step(
+            "train_waveform_model",
+            "models",
+            f"One-dimensional CNN with seed {seed} (variation between seeds, table S8; about 1 h each)",
+            ("--model-seed", str(seed)),
+            label=f"train_waveform_model_seed{seed}",
+        )
+        for seed in range(1, 6)
+    ),
     Step("plot_validation", "models", "Bland-Altman plots and errors by band"),
     Step("predict_calibration_test", "models", "Estimates for the calibration and test patients"),
     Step("evaluate_conformal", "intervals", "Intervals within VitalDB: overall, by subgroup, calibration size"),
@@ -54,34 +70,39 @@ STEPS = (
         "build_mimic_segments",
         "external",
         "Download MIMIC-III waveforms and cut segments",
-        ("--subjects", "700", "--hours-limit", "7.5", "--workers", "6"),
+        ("--subject-list", "data_lists/mimic3wdb_subjects.csv", "--workers", "6"),
         download=True,
     ),
     Step("predict_external", "external", "Features and estimates for MIMIC-III (models are not retrained)"),
     Step("evaluate_external", "external", "Across datasets: as is, weighted, recalibrated, shift"),
     Step("evaluate_selective", "intervals", "Withholding estimates with wide intervals"),
-    Step("explain_models", "intervals", "SHAP for the estimate and the interval width"),
+    Step("explain_models", "intervals", "SHAP for the estimate and the interval width (fig. S8)"),
     Step("build_sensitivity_segments", "sensitivity", "Segments under other exclusion rules", download=True),
     Step("evaluate_sensitivity", "sensitivity", "Coverage under other exclusion rules"),
     Step("explore_review_analyses", "exploratory", "Test accuracy, shrinkage model, offset correction, differences"),
     Step("explore_review2_analyses", "exploratory", "Extremes, MBP bands, slope, pulse-rate groups, shrinkage fix"),
     Step("explore_model_comparison", "exploratory", "Waveform model minus feature model on the same patients"),
+    Step("explore_review3_analyses", "exploratory", "Resplits, one reference reading, overshoot, seeds, weighting"),
+    Step("explore_clinical_threshold", "exploratory", "Intervals against the 140 mmHg threshold"),
+    Step("explore_required_width", "exploratory", "Interval width needed for nominal coverage by band of true SBP"),
     Step("make_characteristics", "outputs", "Table 1 (characteristics of the datasets)"),
+    Step("make_table2", "outputs", "Table 2 (coverage by method)"),
     Step("make_tables", "outputs", "Supplementary tables"),
+    Step("make_supplementary_data", "outputs", "Supplementary data (Excel workbook and CSV files)"),
     Step("plot_study_design", "outputs", "Fig. 1"),
-    Step("plot_main_figures", "outputs", "Figs. 2, 4 and 7"),
-    Step("plot_conformal", "outputs", "Fig. 3 and supplementary figures"),
+    Step("plot_main_figures", "outputs", "Figs. 2, 4 and 7, and figs. S1 and S2"),
+    Step("plot_conformal", "outputs", "Fig. 3 and fig. S6"),
     Step("plot_external", "outputs", "Figs. 5 and 6"),
+    Step("plot_supplement", "outputs", "Figs. S3, S4, S5 and S7"),
+    Step("compare_reference", "outputs", "Compare tables 1 and 2 and the supplementary data with reference_results/"),
     Step("tune_lightgbm", "optional", "Check that the LightGBM settings are not far from tuned ones", optional=True),
     Step("check_fiducials_vitaldb", "optional", "Fiducial points on a VitalDB sample", optional=True),
     Step("check_e_wave_timing", "optional", "Timing of the e wave by pulse rate", optional=True),
-    Step("explore_required_width", "optional", "Interval width needed for nominal coverage by band", optional=True),
-    Step("explore_clinical_threshold", "optional", "Intervals against the 140 mmHg threshold", optional=True),
 )
 
 
 def select(args) -> list[Step]:
-    names = [s.name for s in STEPS]
+    names = [s.key for s in STEPS]
     for name in (args.start, args.stop):
         if name and name not in names:
             raise SystemExit(f"unknown step: {name}")
@@ -103,17 +124,17 @@ def run(step: Step, log_path: Path) -> None:
         print(f"[skip] make_split: {split_file.relative_to(PROJECT_ROOT)} exists (the split is fixed)")
         return
     command = [sys.executable, *(["-I"] if step.isolated else []), "-X", "utf8", f"scripts/{step.name}.py", *step.args]
-    print(f"[run ] {step.name}: {step.description}", flush=True)
+    print(f"[run ] {step.key}: {step.description}", flush=True)
     started = time.perf_counter()
     result = subprocess.run(command, cwd=PROJECT_ROOT, check=False)  # noqa: S603 (fixed list of this project's scripts)
     seconds = time.perf_counter() - started
     with log_path.open("a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow(
-            [datetime.now().isoformat(timespec="seconds"), step.name, f"{seconds:.1f}", result.returncode]
+            [datetime.now().isoformat(timespec="seconds"), step.key, f"{seconds:.1f}", result.returncode]
         )
     if result.returncode != 0:
-        raise SystemExit(f"step {step.name} failed with exit code {result.returncode}")
-    print(f"[done] {step.name} in {seconds / 60:.1f} min", flush=True)
+        raise SystemExit(f"step {step.key} failed with exit code {result.returncode}")
+    print(f"[done] {step.key} in {seconds / 60:.1f} min", flush=True)
 
 
 def main() -> None:
@@ -128,7 +149,7 @@ def main() -> None:
     if args.list:
         for number, step in enumerate(STEPS, 1):
             flags = " [download]" if step.download else " [optional]" if step.optional else ""
-            print(f"{number:2d}. {step.name:28s} {step.stage:12s} {step.description}{flags}")
+            print(f"{number:2d}. {step.key:32s} {step.stage:12s} {step.description}{flags}")
         return
 
     log_path = PROJECT_ROOT / load_config()["paths"]["results"] / "logs" / "run_all_times.csv"

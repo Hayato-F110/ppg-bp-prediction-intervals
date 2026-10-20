@@ -1,0 +1,8 @@
+Dataset,Subgroup,Measure,Patients,Feature model,Waveform model,Difference (95% CI)
+VitalDB test,all,MAE (mmHg),627,13.1,13.0,−0.13 (−0.29 to 0.04)
+VitalDB test,SBP ≥ 160,"Coverage, split (%)",475,26.5,37.1,10.7 (8.9 to 12.5)
+VitalDB test,SBP < 90,"Coverage, split (%)",505,73.4,76.5,3.1 (1.7 to 4.3)
+VitalDB test,SBP ≥ 160,"Coverage, CQR (%)",475,44.3,59.4,15.0 (12.9 to 17.2)
+VitalDB test,SBP < 90,"Coverage, CQR (%)",505,57.9,63.9,6.0 (4.4 to 7.7)
+MIMIC-III,all,"Coverage, split (%)",416,68.9,69.7,0.8 (−0.7 to 2.3)
+MIMIC-III,all,"Coverage, CQR (%)",416,83.7,76.3,−7.4 (−9.1 to −5.6)

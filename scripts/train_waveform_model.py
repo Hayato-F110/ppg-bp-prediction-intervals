@@ -6,8 +6,8 @@ Test and calibration patients are not loaded.
 
 Note: with several CPU threads, training is not exactly reproducible even with fixed seeds (validation MAE
 differed by up to 0.9 mmHg between runs), because parallel sums are added in a varying order. With --deterministic
-the model is trained on one thread, and two runs give identical results (checked on 2026-10-15 with --quick); this
-takes about four times as long. The models of the paper were trained without --deterministic.
+the model is trained on one thread, and two runs give identical results (checked on 2026-10-15 with --quick); a full
+run takes about twice as long (about 2 h). The models of the paper were trained without --deterministic.
 
 usage: uv run python -X utf8 scripts/train_waveform_model.py [--quick] [--model-seed N] [--deterministic]
 output: results/waveform_model/model.pt, validation_metrics.csv, training_log.csv, validation_predictions.parquet

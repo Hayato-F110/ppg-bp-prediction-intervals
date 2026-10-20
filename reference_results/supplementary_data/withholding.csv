@@ -1,0 +1,21 @@
+Dataset,Width threshold (mmHg),Segments kept (%),MAE (mmHg),SD of error (mmHg),Coverage of kept (%),SD of true SBP (mmHg)
+VitalDB test,43.6,10.3,10.2,12.8,85.7,14.3
+VitalDB test,46.5,19.9,10.4,13.1,87.1,15.0
+VitalDB test,48.8,29.2,10.7,13.5,87.2,15.5
+VitalDB test,51.0,38.8,10.9,13.8,88.2,16.0
+VitalDB test,53.3,48.6,11.1,14.1,88.7,16.3
+VitalDB test,56.0,58.4,11.3,14.4,89.1,16.8
+VitalDB test,59.0,68.0,11.6,14.7,89.5,17.2
+VitalDB test,63.2,77.9,11.9,15.1,89.9,17.8
+VitalDB test,70.3,88.2,12.3,15.7,90.2,18.5
+VitalDB test,144.5,100.0,13.1,17.0,90.3,20.0
+MIMIC-III,43.6,0.0,—,—,—,—
+MIMIC-III,46.5,0.1,—,—,—,—
+MIMIC-III,48.8,0.3,—,—,—,—
+MIMIC-III,51.0,0.8,—,—,—,—
+MIMIC-III,53.3,1.8,14.9,17.7,78.5,20.1
+MIMIC-III,56.0,4.4,16.8,19.3,80.6,21.9
+MIMIC-III,59.0,9.5,17.9,20.0,80.3,22.4
+MIMIC-III,63.2,19.1,18.3,20.3,79.5,22.0
+MIMIC-III,70.3,39.3,19.3,22.3,81.4,23.2
+MIMIC-III,144.5,100.0,21.7,26.8,83.7,25.6
