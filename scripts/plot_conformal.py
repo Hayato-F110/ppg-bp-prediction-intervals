@@ -16,7 +16,6 @@ from ppg_bp.evaluation.plots import (
     AXIS,
     INK,
     MIN_TEXT,
-    MUTED,
     PAGE_WIDTH,
     SURFACE,
     apply_style,
@@ -135,7 +134,9 @@ def calibration_size(table, out_path, level=0.9):
                 scale * grouped.quantile(0.05).to_numpy(),
                 scale * grouped.quantile(0.95).to_numpy(),
             )
-            ax.fill_between(x, lo, hi, color=color, alpha=0.18, linewidth=0)
+            # the 5th-95th percentile as thin lines, not a translucent band: EPS cannot draw transparency
+            for edge in (lo, hi):
+                ax.plot(x, edge, color=color, linewidth=0.8, linestyle=(0, (3, 2)))
             ax.plot(
                 x,
                 mean,
@@ -154,27 +155,10 @@ def calibration_size(table, out_path, level=0.9):
         ax.set_xlabel("Calibration patients")
         ax.set_ylabel(ylabel)
         ax.set_title(title, loc="left")
+    axes[0].axhline(100 * level, color=INK, linewidth=1.0, linestyle="--", label=f"nominal {100 * level:.0f}%")
+    for ax in axes:
         ax.legend(frameon=False)
-    axes[0].axhline(100 * level, color=INK, linewidth=1.0, linestyle="--")
-    axes[0].annotate(
-        f"nominal {100 * level:.0f}%",
-        (1.0, 100 * level),
-        xycoords=("axes fraction", "data"),
-        xytext=(-4, -9),
-        textcoords="offset points",
-        ha="right",
-        fontsize=MIN_TEXT,
-        color=INK,
-    )
-    axes[0].annotate(
-        "45: closest prior study",
-        (45, axes[0].get_ylim()[0]),
-        xytext=(0, 5),
-        textcoords="offset points",
-        fontsize=MIN_TEXT,
-        color=MUTED,
-        ha="center",
-    )
+    # the caption notes that the closest earlier study used 45 calibration patients
     save_figure(fig, out_path)
     plt.close(fig)
 

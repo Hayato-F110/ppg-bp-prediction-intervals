@@ -154,7 +154,7 @@ def bland_altman(
             va="bottom",
             fontsize=MIN_TEXT,
             color=INK,
-            bbox={"facecolor": SURFACE, "edgecolor": "none", "alpha": 0.8, "pad": 1.0},
+            bbox={"facecolor": SURFACE, "edgecolor": "none", "pad": 1.0},
         )
     ax.set_xlim(extent[0], extent[1])
     ax.set_ylim(-limit, limit)
@@ -171,7 +171,7 @@ def bland_altman(
             textcoords="offset points",
             fontsize=MIN_TEXT,
             color=INK_SECONDARY,
-            bbox={"facecolor": SURFACE, "edgecolor": "none", "alpha": 0.8, "pad": 1.0},
+            bbox={"facecolor": SURFACE, "edgecolor": "none", "pad": 1.0},
         )
     return mesh, (float(bias), float(lower), float(upper))
 
