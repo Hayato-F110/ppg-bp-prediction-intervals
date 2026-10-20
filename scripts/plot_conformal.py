@@ -31,7 +31,7 @@ BAND_LABELS = ["<90", "90–99", "100–119", "120–139", "140–159", "≥160"
 METHODS = [
     ("split", "Split conformal", "#2a78d6", "o"),
     ("cqr", "CQR", "#eb6834", "s"),
-    ("mondrian_pred_sqi", "Group-wise (predicted SBP × signal quality)", "#1baf7a", "^"),
+    ("mondrian_pred_sqi", "Group-wise (predicted SBP and signal quality)", "#1baf7a", "^"),
     ("cqr_mondrian_pred_sqi", "CQR + group-wise", "#eda100", "D"),
 ]
 

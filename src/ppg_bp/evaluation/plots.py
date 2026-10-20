@@ -49,12 +49,14 @@ def signed(value: float, digits: int = 1) -> str:
 
 
 def save_figure(fig: Figure, path: Path) -> None:
-    """Save the figure as PNG (200 dpi) and as an SVG (vector) file of the same name.
+    """Save the figure as PNG (200 dpi) and as SVG, PDF and EPS (vector) files of the same name.
 
-    The .docx of the paper uses the SVG (sharp at any size). The PNG is for checking and for tools without SVG support.
+    The .docx of the paper uses the SVG and the LaTeX version the PDF (sharp at any size). EPS is the format IOP
+    recommends for submission. The PNG is for checking and for tools without vector support.
     """
     fig.savefig(path, dpi=200)
-    fig.savefig(Path(path).with_suffix(".svg"))
+    for suffix in (".svg", ".pdf", ".eps"):
+        fig.savefig(Path(path).with_suffix(suffix))
 
 
 def label(
@@ -84,7 +86,12 @@ def apply_style() -> None:
             "figure.facecolor": SURFACE,
             "axes.facecolor": SURFACE,
             "savefig.facecolor": SURFACE,
-            "font.family": "DejaVu Sans",
+            # IOP accepts only Times, Helvetica, Courier and Symbol in figures; Arial and Liberation Sans have the
+            # metrics of Helvetica. Fonts are embedded as TrueType so that PDF and EPS keep the same glyphs.
+            "font.family": "sans-serif",
+            "font.sans-serif": ["Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"],
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
             "font.size": 8,
             "axes.titlesize": 8.5,
             "axes.labelsize": 8,
