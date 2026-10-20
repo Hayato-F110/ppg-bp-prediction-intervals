@@ -19,4 +19,4 @@ keywords:
   - dataset shift
 version: 1.0.0
 repository-code: "https://github.com/Hayato-F110/ppg-bp-prediction-intervals"
-# doi: added after the first Zenodo release
+doi: "10.5281/zenodo.23513091"  # version v1.0.0; all versions: 10.5281/zenodo.23513090

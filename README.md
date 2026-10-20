@@ -93,6 +93,6 @@ tests/            unit tests (uv run pytest)
 
 ## Licence and citation
 
-Code: MIT licence (see `LICENSE`). Please cite the paper and the archived version of this code (Zenodo DOI: to be added; see `CITATION.cff`).
+Code: MIT licence (see `LICENSE`). Please cite the paper and the archived version of this code (Zenodo, version v1.0.0: https://doi.org/10.5281/zenodo.23513091; all versions: https://doi.org/10.5281/zenodo.23513090; see `CITATION.cff`).
 
 The author used a generative AI assistant (Claude, Anthropic) to write and test this code under the author's direction, as disclosed in the paper.
