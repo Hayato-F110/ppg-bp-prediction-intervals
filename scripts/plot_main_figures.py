@@ -85,7 +85,8 @@ def error_panel(ax, bands: pd.DataFrame):
         part = bands[bands.model == model].set_index("band").reindex(labels)
         x = np.arange(len(labels)) + dx
         ax.vlines(x, part.q25, part.q75, color=color, linewidth=1.4)
-        dot(ax, x, part["median"], color, label=name)
+        # marker shape as well as colour, so that the models stay apart in greyscale
+        dot(ax, x, part["median"], color, "o" if model == "lightgbm" else "s", label=name)
     feature_part = bands[bands.model == "lightgbm"].set_index("band").reindex(labels)
     for k, v in enumerate(feature_part["median"]):
         label(ax, signed(v, 0), (k - 0.12, v), (-5, 0), ha="right", va="center")
@@ -169,7 +170,7 @@ def draw_subgroups(ax, rows: pd.DataFrame, level: float) -> float:
             low = 100 * r.coverage < level * 100 - SHORTFALL
             color = ORANGE if low else BLUE
             ax.hlines(y, 100 * r.coverage_lo, 100 * r.coverage_hi, color=color, linewidth=1.4)
-            dot(ax, 100 * r.coverage, y, color)
+            dot(ax, 100 * r.coverage, y, color, "s" if low else "o")  # the shortfall shows in greyscale too
             ax.annotate(
                 f"{half_up(100 * r.coverage, 1)}  (n = {int(r.subjects)}){' †' if r.subjects < FEW_PATIENTS else ''}",
                 (101, y),

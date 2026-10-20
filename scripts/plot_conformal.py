@@ -135,8 +135,10 @@ def calibration_size(table, out_path, level=0.9):
                 scale * grouped.quantile(0.95).to_numpy(),
             )
             # the 5th-95th percentile as thin lines, not a translucent band: EPS cannot draw transparency
+            # dashed for split conformal and dotted for CQR, so that they stay apart in greyscale
+            dashes = (0, (3, 2)) if method == "split" else (0, (1, 1.5))
             for edge in (lo, hi):
-                ax.plot(x, edge, color=color, linewidth=0.8, linestyle=(0, (3, 2)))
+                ax.plot(x, edge, color=color, linewidth=0.8, linestyle=dashes)
             ax.plot(
                 x,
                 mean,

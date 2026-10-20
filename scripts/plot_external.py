@@ -102,7 +102,7 @@ def offset_corrected_lines(axes, shift_path: Path):
     shifted = pd.read_csv(shift_path)
     shifted = shifted[shifted.shifted & np.isfinite(shifted.width_median)]
     for ax, (column, scale, _, _) in zip(axes, RECALIBRATION_PANELS, strict=True):
-        for method, method_name, color, _ in METHODS:
+        for method, method_name, color, marker in METHODS:
             mean = shifted[shifted.method == method].groupby("subjects")[column].mean()
             ax.plot(
                 mean.index,
@@ -110,6 +110,9 @@ def offset_corrected_lines(axes, shift_path: Path):
                 linestyle="--",
                 color=color,
                 linewidth=1.1,
+                marker=marker,  # open markers tell the methods apart in greyscale
+                markersize=3.5,
+                markerfacecolor=SURFACE,
                 label=f"{method_name}, offset corrected",
             )
 
