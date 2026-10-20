@@ -14,6 +14,7 @@ import itertools
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import font_manager
 from matplotlib.axes import Axes
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import LinearSegmentedColormap
@@ -29,9 +30,13 @@ SERIES = "#2a78d6"
 DENSITY = LinearSegmentedColormap.from_list("density", ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"])
 
 TARGET_LABELS = {"sbp": "SBP", "dbp": "DBP", "mbp": "MBP"}
-# Text width of the paper (A4 with 2.5 cm side margins, about 16 cm). Figures are drawn at this width and not scaled, so
-# text is 7-8 pt
-PAGE_WIDTH = 6.5
+# Text width of the paper (153 mm in the IOP template). Figures are drawn at this width and not scaled, so the sizes
+# below are the sizes in print. IOP asks for 8 to 12 pt text at final size.
+PAGE_WIDTH = 153 / 25.4
+MIN_TEXT = 8.0
+# TeX Gyre Heros is a free clone of Helvetica (GUST Font License), one of the font families IOP accepts in figures.
+# The OpenType files are kept in assets/fonts; without them, Helvetica or Arial (same metrics) is used.
+FONT_DIR = Path(__file__).resolve().parents[3] / "assets" / "fonts"
 
 
 def half_up(value: float, digits: int = 0) -> str:
@@ -67,7 +72,7 @@ def label(
     *,
     ha: str = "center",
     va: str = "baseline",
-    size: float = 6.5,
+    size: float = MIN_TEXT,
     color: str = INK,
     **kwargs,
 ) -> None:
@@ -76,28 +81,31 @@ def label(
 
 
 def dot(ax: Axes, x: ArrayLike, y: ArrayLike, color: str, marker: str = "o", size: float = 4.5, **kwargs) -> None:
-    """Markers with a light edge, the style of the point estimates in all figures."""
-    ax.plot(x, y, marker, color=color, markersize=size, markeredgecolor=SURFACE, markeredgewidth=0.8, **kwargs)
+    """Markers of the point estimates. They have no light edge, which would cut the confidence bars drawn through
+    them."""
+    ax.plot(x, y, marker, color=color, markersize=size, markeredgewidth=0, **kwargs)
 
 
 def apply_style() -> None:
+    for path in sorted(FONT_DIR.glob("*.otf")):
+        font_manager.fontManager.addfont(str(path))
     plt.rcParams.update(
         {
             "figure.facecolor": SURFACE,
             "axes.facecolor": SURFACE,
             "savefig.facecolor": SURFACE,
-            # IOP accepts only Times, Helvetica, Courier and Symbol in figures; Arial and Liberation Sans have the
-            # metrics of Helvetica. Fonts are embedded as TrueType so that PDF and EPS keep the same glyphs.
+            # IOP accepts only Times, Helvetica, Courier and Symbol in figures. Fonts are embedded (Type 42) so that
+            # PDF and EPS keep the same glyphs.
             "font.family": "sans-serif",
-            "font.sans-serif": ["Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"],
+            "font.sans-serif": ["TeX Gyre Heros", "Helvetica", "Arial", "DejaVu Sans"],
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
-            "font.size": 8,
-            "axes.titlesize": 8.5,
-            "axes.labelsize": 8,
-            "xtick.labelsize": 7.5,
-            "ytick.labelsize": 7.5,
-            "legend.fontsize": 7,
+            "font.size": MIN_TEXT,
+            "axes.titlesize": 9,
+            "axes.labelsize": MIN_TEXT,
+            "xtick.labelsize": MIN_TEXT,
+            "ytick.labelsize": MIN_TEXT,
+            "legend.fontsize": MIN_TEXT,
             "text.color": INK,
             "axes.labelcolor": INK_SECONDARY,
             "xtick.color": INK_SECONDARY,  # darker than MUTED so that tick labels stay legible in print
@@ -144,7 +152,7 @@ def bland_altman(
             textcoords="offset points",
             ha="right",
             va="bottom",
-            fontsize=6,
+            fontsize=MIN_TEXT,
             color=INK,
             bbox={"facecolor": SURFACE, "edgecolor": "none", "alpha": 0.8, "pad": 1.0},
         )
@@ -156,12 +164,12 @@ def bland_altman(
     outside = 100.0 * np.mean(np.abs(diff) > limit)
     if outside > MIN_SHARE_NOTED:
         ax.annotate(
-            f"{outside:.1f}% beyond ±{limit:.0f} mmHg not shown",
+            f"{outside:.1f}% outside ±{limit:.0f} not shown",
             (0.0, 0.0),
             xycoords="axes fraction",
             xytext=(3, 3),
             textcoords="offset points",
-            fontsize=6,
+            fontsize=MIN_TEXT,
             color=INK_SECONDARY,
             bbox={"facecolor": SURFACE, "edgecolor": "none", "alpha": 0.8, "pad": 1.0},
         )
@@ -189,7 +197,13 @@ def error_by_band(
         ax.plot([k, k], [q25, q75], color=SERIES, linewidth=1.4, solid_capstyle="round")
         ax.plot(k, q50, "o", color=SERIES, markersize=4.5, markeredgecolor=SURFACE, markeredgewidth=0.8)
         ax.annotate(
-            signed(q50, 0), (k, q75), xytext=(0, 3), textcoords="offset points", ha="center", fontsize=6.5, color=INK
+            signed(q50, 0),
+            (k, q75),
+            xytext=(0, 3),
+            textcoords="offset points",
+            ha="center",
+            fontsize=MIN_TEXT,
+            color=INK,
         )
     ax.axhline(0.0, color=AXIS, linewidth=1.0)
     ax.set_xticks(range(len(labels)), labels, rotation=30)

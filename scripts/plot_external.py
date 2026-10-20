@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from ppg_bp.config import PROJECT_ROOT, load_config
-from ppg_bp.evaluation.plots import INK, PAGE_WIDTH, SURFACE, apply_style, half_up, save_figure
+from ppg_bp.evaluation.plots import INK, MIN_TEXT, PAGE_WIDTH, SURFACE, apply_style, half_up, save_figure
 
 BANDS = ["<90", "90–<100", "100–<120", "120–<140", "140–<160", "≥160"]
 BAND_LABELS = ["<90", "90–99", "100–119", "120–139", "140–159", "≥160"]
@@ -72,7 +72,7 @@ def coverage_figure(source, target, name, out_path, level=0.9):
         xytext=(-4, 3),
         textcoords="offset points",
         ha="right",
-        fontsize=7,
+        fontsize=MIN_TEXT,
         color=INK,
     )
     save_figure(fig, out_path)
@@ -126,7 +126,7 @@ def source_width_lines(ax, source):
             xytext=(-4, -9 if method == "cqr" else 3),
             textcoords="offset points",
             ha="right",
-            fontsize=6.5,
+            fontsize=MIN_TEXT,
             color=INK,
         )
 
@@ -151,7 +151,7 @@ def recalibration_figure(table, source, name, out_path, level=0.9, model="lightg
     if shift_path.exists():
         offset_corrected_lines(axes, shift_path)
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, loc="outside lower center", ncol=4, fontsize=6.5)
+    fig.legend(handles, labels, frameon=False, loc="outside lower center", ncol=4, fontsize=MIN_TEXT)
     source_width_lines(axes[2], source)
     axes[2].set_ylim(0, None)
     save_figure(fig, out_path)

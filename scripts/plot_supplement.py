@@ -17,7 +17,7 @@ import pandas as pd
 
 from ppg_bp.config import PROJECT_ROOT
 from ppg_bp.constants import MAIN_LEVEL
-from ppg_bp.evaluation.plots import INK, MUTED, PAGE_WIDTH, apply_style, dot, save_figure
+from ppg_bp.evaluation.plots import INK, MIN_TEXT, MUTED, PAGE_WIDTH, apply_style, dot, save_figure
 
 RESULTS = PROJECT_ROOT / "results"
 FIGURES = RESULTS / "figures"
@@ -89,7 +89,7 @@ def true_vs_predicted() -> None:
     ax.set_ylabel("Patient-level coverage (%)")
     ax.set_ylim(0, 105)
     ax.grid(axis="x", visible=False)
-    ax.legend(frameon=False, loc="lower left", fontsize=6.5)
+    ax.legend(frameon=False, loc="lower left", fontsize=MIN_TEXT)
     save_figure(fig, FIGURES / "supp_true_vs_predicted.png")
     plt.close(fig)
 

@@ -683,8 +683,9 @@ def _s13_offset(folder) -> list:
             }
         )
     return section(
-        "**(c) One reference reading per patient: the mean error of each patient's first segments (10 s, 1 min or "
-        "5 min) added to the patient's later estimates; intervals calibrated on the corrected calibration patients**",
+        "**(c) One reference reading per patient: the mean of reference minus estimate over each patient's first "
+        "segments (10 s, 1 min or 5 min) added to the patient's later estimates; intervals calibrated on the "
+        "corrected calibration patients**",
         None,
         pd.DataFrame(rows),
     )

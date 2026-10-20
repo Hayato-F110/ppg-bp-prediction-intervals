@@ -15,6 +15,7 @@ from ppg_bp.config import PROJECT_ROOT, load_config
 from ppg_bp.evaluation.plots import (
     AXIS,
     INK,
+    MIN_TEXT,
     MUTED,
     PAGE_WIDTH,
     SURFACE,
@@ -32,7 +33,7 @@ METHODS = [
     ("split", "Split conformal", "#2a78d6", "o"),
     ("cqr", "CQR", "#eb6834", "s"),
     ("mondrian_pred_sqi", "Group-wise (predicted SBP and signal quality)", "#1baf7a", "^"),
-    ("cqr_mondrian_pred_sqi", "CQR + group-wise", "#eda100", "D"),
+    ("cqr_mondrian_pred_sqi", "CQR and group-wise (same groups)", "#eda100", "D"),
 ]
 
 
@@ -52,7 +53,7 @@ def coverage_panel(ax, rows, split, level, out_path):
         xytext=(-4, 4),
         textcoords="offset points",
         ha="right",
-        fontsize=7,
+        fontsize=MIN_TEXT,
         color=INK,
     )
     # Coverage of split conformal expected if the estimate only shrinks linearly towards the mean
@@ -162,7 +163,7 @@ def calibration_size(table, out_path, level=0.9):
         xytext=(-4, -9),
         textcoords="offset points",
         ha="right",
-        fontsize=7,
+        fontsize=MIN_TEXT,
         color=INK,
     )
     axes[0].annotate(
@@ -170,7 +171,7 @@ def calibration_size(table, out_path, level=0.9):
         (45, axes[0].get_ylim()[0]),
         xytext=(0, 5),
         textcoords="offset points",
-        fontsize=6.5,
+        fontsize=MIN_TEXT,
         color=MUTED,
         ha="center",
     )

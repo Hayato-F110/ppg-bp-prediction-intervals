@@ -18,7 +18,7 @@ import shap
 from scipy.stats import spearmanr
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
-from ppg_bp.evaluation.plots import PAGE_WIDTH, apply_style, half_up, save_figure
+from ppg_bp.evaluation.plots import MIN_TEXT, PAGE_WIDTH, apply_style, half_up, save_figure
 from ppg_bp.features.extract import FEATURE_NAMES
 from ppg_bp.models.dataset import inner_validation_subjects, load_split
 
@@ -139,7 +139,7 @@ def plot_importance(importance, out_path) -> None:
         ax.set_yticks(range(len(top)), [READABLE.get(name, name) for name in top.index])
         for k, value in enumerate(top.to_numpy()):
             ax.annotate(
-                half_up(value, 2), (value, k), xytext=(2, 0), textcoords="offset points", va="center", fontsize=6.5
+                half_up(value, 2), (value, k), xytext=(2, 0), textcoords="offset points", va="center", fontsize=MIN_TEXT
             )
         ax.set_xlabel("Mean absolute SHAP value (mmHg)")
         ax.set_title(title, loc="left")

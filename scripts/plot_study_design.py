@@ -14,6 +14,7 @@ from ppg_bp.evaluation.plots import (
     AXIS,
     INK,
     INK_SECONDARY,
+    MIN_TEXT,
     PAGE_WIDTH,
     apply_style,
     save_figure,
@@ -34,14 +35,14 @@ def box(ax, x0, y0, x1, y1, title, lines, color):
             linewidth=0.8,
         )
     )
-    ax.text((x0 + x1) / 2, y1 - 0.02, title, ha="center", va="top", fontsize=7.5, fontweight="bold", color=INK)
+    ax.text((x0 + x1) / 2, y1 - 0.02, title, ha="center", va="top", fontsize=MIN_TEXT, fontweight="bold", color=INK)
     ax.text(
         (x0 + x1) / 2,
         y1 - 0.075,
         "\n".join(lines),
         ha="center",
         va="top",
-        fontsize=6.8,
+        fontsize=MIN_TEXT,
         color=INK_SECONDARY,
         linespacing=1.3,
     )
@@ -78,7 +79,7 @@ def vitaldb_row(ax):
         0.19,
         0.98,
         "VitalDB",
-        ["surgery", "PPG 500 Hz,", "analysed at 125 Hz", "3,134 patients"],
+        ["surgery", "PPG 500 Hz,", "analysed at 125 Hz", "3,134 patients", "3,653,817 segments"],
         VITALDB,
     )
     train = box(ax, 0.25, 0.86, 0.46, 0.98, "Training", ["1,880 patients"], VITALDB)
@@ -105,7 +106,9 @@ def vitaldb_row(ax):
     arrow(ax, models["bottom"], intervals["top"])
     arrow(ax, intervals["right"], (0.82, 0.72))
     arrow(ax, test["right"], (0.82, 0.62))
-    ax.text(0.22, 0.555, "split by patient", ha="center", va="top", fontsize=6.5, color=INK_SECONDARY, style="italic")
+    ax.text(
+        0.22, 0.555, "split by patient", ha="center", va="top", fontsize=MIN_TEXT, color=INK_SECONDARY, style="italic"
+    )
 
 
 def mimic_row(ax):

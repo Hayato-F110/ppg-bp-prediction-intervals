@@ -27,6 +27,7 @@ from ppg_bp.evaluation.plots import (
     AXIS,
     INK,
     INK_SECONDARY,
+    MIN_TEXT,
     PAGE_WIDTH,
     SURFACE,
     TARGET_LABELS,
@@ -174,7 +175,7 @@ def draw_subgroups(ax, rows: pd.DataFrame, level: float) -> float:
                 (101, y),
                 xycoords="data",
                 va="center",
-                fontsize=6.5,
+                fontsize=MIN_TEXT,
                 color=INK if low else INK_SECONDARY,
                 annotation_clip=False,
             )
@@ -191,7 +192,7 @@ def draw_subgroups(ax, rows: pd.DataFrame, level: float) -> float:
             textcoords="offset points",
             ha="right",
             va="center",
-            fontsize=7.5,
+            fontsize=MIN_TEXT,
             fontweight="bold",
             color=INK,
             annotation_clip=False,
@@ -214,18 +215,10 @@ def subgroups(results: Path, out_path: Path, level=0.9):
         textcoords="offset points",
         ha="right",
         va="top",
-        fontsize=7,
+        fontsize=MIN_TEXT,
         color=INK,
     )
-    ax.annotate(
-        f"orange: more than {SHORTFALL} points below nominal",
-        (0.0, 0.0),
-        xycoords="axes fraction",
-        xytext=(4, 4),
-        textcoords="offset points",
-        fontsize=6.5,
-        color=ORANGE,
-    )
+    # the meaning of orange (more than SHORTFALL points below nominal) is given in the caption
     ax.set_ylim(y + 0.6, 0.6)
     ax.set_xlim(60, 100)
     ax.set_xlabel("Patient-level coverage (%), split conformal, 95% CI")
@@ -256,7 +249,7 @@ def kept_error_panel(ax, vitaldb: pd.DataFrame):
         xytext=(-3, 3),
         textcoords="offset points",
         ha="right",
-        fontsize=7,
+        fontsize=MIN_TEXT,
         color=INK,
     )
     ax.set_xlim(0, 103)
@@ -280,7 +273,7 @@ def kept_share_panel(ax, vitaldb: pd.DataFrame, mimic: pd.DataFrame):
         markeredgecolor=SURFACE,
         markeredgewidth=0.8,
     )
-    label(ax, "same share kept", (70, 70), (-4, 4), ha="right", size=7, color=INK_SECONDARY, rotation=38)
+    label(ax, "same share kept", (70, 70), (-4, 4), ha="right", size=MIN_TEXT, color=INK_SECONDARY, rotation=38)
     ax.set_xlim(0, 103)
     ax.set_ylim(0, 103)
     ax.set_xlabel("VitalDB test segments kept (%)")
@@ -308,12 +301,19 @@ def supp_bland_altman(results: Path, out_path: Path):
         results / "conformal" / "predictions_test.parquet",
         columns=[*targets, *[f"{t}_{m}_mean" for t in targets for m in ("lightgbm", "cnn")]],
     )
-    fig, axes = plt.subplots(2, 3, figsize=(PAGE_WIDTH, 4.6), constrained_layout=True)
+    fig, axes = plt.subplots(2, 3, figsize=(PAGE_WIDTH, 5.8), constrained_layout=True)
     mesh = None
     for row, (model, name, _) in enumerate(MODELS):
-        for ax, target in zip(axes[row], targets, strict=True):
+        for column, (ax, target) in enumerate(zip(axes[row], targets, strict=True)):
             mesh, _ = bland_altman(ax, test[target], test[f"{target}_{model}_mean"], f"{name}: {TARGET_LABELS[target]}")
-    colorbar = fig.colorbar(mesh, ax=axes, shrink=0.6, pad=0.01, label="Segments per bin (log)")
+            # axis titles only on the outer panels, so that the panels keep their width
+            if column > 0:
+                ax.set_ylabel("")
+            if row == 0:
+                ax.set_xlabel("")
+    colorbar = fig.colorbar(
+        mesh, ax=axes, location="bottom", shrink=0.5, aspect=40, pad=0.02, label="Segments per bin (log)"
+    )
     colorbar.outline.set_visible(False)
     if colorbar.solids is not None:
         colorbar.solids.set_rasterized(False)
@@ -343,7 +343,7 @@ def supp_slope_curve(results: Path, out_path: Path, residual_sd=9.6, slope=0.30)
     axes[1].set_ylim(0, None)
     for ax in axes:
         ax.set_xlabel("Slope b of the estimate on the true SBP")
-    axes[0].legend(frameon=False, loc="upper left")
+    axes[1].legend(frameon=False, loc="lower left")  # the coverage panel has no free corner
     save_figure(fig, out_path)
     plt.close(fig)
 
