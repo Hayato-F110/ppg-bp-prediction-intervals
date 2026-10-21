@@ -142,7 +142,11 @@ def main() -> None:
     parser.add_argument("--list", action="store_true", help="list the steps and exit")
     parser.add_argument("--from", dest="start", help="first step to run")
     parser.add_argument("--to", dest="stop", help="last step to run")
-    parser.add_argument("--download", action="store_true", help="include the steps that download data")
+    parser.add_argument(
+        "--download",
+        action="store_true",
+        help="include the steps that download data (without it they are skipped, even in --from or --to)",
+    )
     parser.add_argument("--optional", action="store_true", help="include the optional checks")
     args = parser.parse_args()
 

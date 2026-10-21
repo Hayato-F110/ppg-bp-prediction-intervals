@@ -98,12 +98,13 @@ def apply_style() -> None:
             "figure.facecolor": SURFACE,
             "axes.facecolor": SURFACE,
             "savefig.facecolor": SURFACE,
-            # IOP accepts only Times, Helvetica, Courier and Symbol in figures. Fonts are embedded (Type 42) so that
-            # PDF and EPS keep the same glyphs.
+            # IOP accepts only Times, Helvetica, Courier and Symbol in figures. Fonts are embedded so that PDF and EPS
+            # keep the same glyphs: Type 42 in PDF; Type 3 in EPS, because TeX Gyre Heros has CFF outlines, which
+            # PostScript interpreters such as Ghostscript reject as a Type 42 font.
             "font.family": "sans-serif",
             "font.sans-serif": ["TeX Gyre Heros", "Helvetica", "Arial", "DejaVu Sans"],
             "pdf.fonttype": 42,
-            "ps.fonttype": 42,
+            "ps.fonttype": 3,
             "font.size": MIN_TEXT,
             "axes.titlesize": 9,
             "axes.labelsize": MIN_TEXT,

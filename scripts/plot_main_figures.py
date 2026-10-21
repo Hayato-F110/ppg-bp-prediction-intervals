@@ -12,7 +12,7 @@ usage: uv run python -X utf8 scripts/plot_main_figures.py
 input: results/review/test_accuracy.csv, results/conformal/predictions_test.parquet, results/conformal/coverage.csv,
        results/conformal/skewness_strata.csv, results/conformal/selective.csv, results/review2/slope_curve.csv
 output: results/figures/main_accuracy, main_subgroups, main_withholding, supp_bland_altman_test, supp_slope_curve
-        (.png and .svg)
+        (.png, .svg, .pdf and .eps)
 """
 
 from pathlib import Path

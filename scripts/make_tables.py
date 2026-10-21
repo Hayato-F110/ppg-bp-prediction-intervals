@@ -785,7 +785,7 @@ def main():
     out_path = results / "tables" / "supplement_tables.md"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(out), encoding="utf-8")
-    print("Wrote the supplementary tables S1-S8 and S10-S13 (S9 is in the text of the supplement)")
+    print("Wrote the supplementary tables (headings follow an earlier numbering; README.md maps them to the paper)")
 
 
 if __name__ == "__main__":

@@ -218,6 +218,8 @@ def main():
         subjects = listed_records(args.subject_list)
         order = list(subjects)  # the order of the list (the order visited in the paper)
         args.subjects, args.hours_limit = len(subjects), float("inf")  # read every listed subject
+        # a listed subject that failed (e.g. a network error) is tried again; its new row is appended
+        done = {s: r for s, r in done.items() if r["status"] == "ok"}
     else:
         subjects = list_records()
         order = np.random.default_rng(CONFIG["seed"]).permutation(sorted(subjects))
@@ -238,6 +240,27 @@ def main():
                     csv.DictWriter(f, FIELDS).writerow(row)
             log(f"tried {tried}, with kept segments {n_ok}, {(time.time() - start) / 60:.1f} min")
     log(f"=== done: {n_ok} subjects with kept segments")
+    if args.subject_list:
+        compare_with_list(summary_path, args.subject_list)
+
+
+def compare_with_list(summary_path: Path, list_path: Path) -> None:
+    """Report listed subjects whose start (s) or number of kept segments differs from the published list."""
+    with summary_path.open(encoding="utf-8") as f:
+        read = {r["subject"]: r for r in csv.DictReader(f)}  # the last row of each subject
+    with list_path.open(encoding="utf-8") as f:
+        listed = [r for r in csv.DictReader(f) if r["status"] == "ok"]
+    differ = [
+        r["subject"]
+        for r in listed
+        if r["subject"] not in read
+        or read[r["subject"]]["status"] != "ok"
+        or int(read[r["subject"]]["start_sec"]) != int(r["start_sec"])
+        or int(read[r["subject"]]["ok"]) != int(r["ok"])
+    ]
+    log(f"=== compared with {list_path.name}: {len(listed) - len(differ)} of {len(listed)} subjects match")
+    if differ:
+        log(f"differing or missing (run again to retry failures): {', '.join(differ[:20])}")
 
 
 if __name__ == "__main__":

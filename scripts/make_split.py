@@ -18,6 +18,20 @@ PRINT_LOW, PRINT_HIGH = 100, 140  # SBP limits (mmHg) of the summary printed for
 # The split of the paper (case ID, subject ID, part; scripts/export_id_lists.py). A download made later may differ
 # slightly (failed or updated cases), so the published split is used and the differences are reported.
 PUBLISHED_SPLIT = PROJECT_ROOT / "data_lists" / "vitaldb_split.csv"
+PUBLISHED_CASES = PROJECT_ROOT / "data_lists" / "vitaldb_cases.csv"
+
+
+def compare_with_published_cases(summary: pd.DataFrame) -> None:
+    """Report cases whose numbers of segments and of kept segments differ from those of the paper."""
+    published = pd.read_csv(PUBLISHED_CASES)
+    here = summary[["caseid", "n_segments", "ok"]]
+    merged = published.merge(here, on="caseid", how="left", suffixes=("", "_here"))
+    missing = merged["ok_here"].isna()
+    differ = ~missing & ((merged["n_segments"] != merged["n_segments_here"]) | (merged["ok"] != merged["ok_here"]))
+    print(
+        f"published cases: {len(published)}; {int(missing.sum())} not downloaded here, "
+        f"{int(differ.sum())} with different numbers of segments, {int((~missing & ~differ).sum())} identical"
+    )
 
 
 def use_published_split(table: pd.DataFrame) -> pd.DataFrame:
@@ -47,6 +61,9 @@ def main():
     print(f"cases processed {len(summary)}, errors {len(errors)}")
     for _, row in errors.iterrows():
         print(f"  case {row['caseid']}: {row['error']}")
+
+    if PUBLISHED_CASES.exists():
+        compare_with_published_cases(summary)
 
     totals = summary[list(REASONS)].sum()
     print(f"\n10-s segments in total {int(totals.sum()):,}")

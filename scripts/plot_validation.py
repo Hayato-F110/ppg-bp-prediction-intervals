@@ -3,7 +3,7 @@
 usage: uv run python -X utf8 scripts/plot_validation.py
 input: results/feature_models/validation_predictions.parquet, results/waveform_model/validation_predictions.parquet (if
 present)
-output: results/figures/phase3_bland_altman_<model>, phase3_error_by_band_<model> (.png and .svg),
+output: results/figures/phase3_bland_altman_<model>, phase3_error_by_band_<model> (.png, .svg, .pdf and .eps),
 phase3_error_by_band.csv
 """
 

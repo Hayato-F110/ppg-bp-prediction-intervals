@@ -2,7 +2,7 @@
 (Fig. 5), and recalibration with patients of the external dataset (Fig. 6).
 
 usage: uv run python -X utf8 scripts/plot_external.py [--dataset mimic3wdb]
-output: results/figures/phase5_coverage_source_vs_target, phase5_recalibration (.png and .svg)
+output: results/figures/phase5_coverage_source_vs_target, phase5_recalibration (.png, .svg, .pdf and .eps)
 """
 
 import argparse

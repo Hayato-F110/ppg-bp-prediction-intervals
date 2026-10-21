@@ -2,7 +2,7 @@
 
 usage: uv run python -X utf8 scripts/plot_conformal.py
 input: results/conformal/coverage.csv, calibration_size.csv
-output: results/figures/phase4_coverage_by_sbp, phase4_calibration_size (.png and .svg)
+output: results/figures/phase4_coverage_by_sbp, phase4_calibration_size (.png, .svg, .pdf and .eps)
 """
 
 from pathlib import Path

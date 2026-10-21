@@ -28,7 +28,7 @@ The data are not redistributed. Obtain them from the original sources and accept
 | MIMIC-III Waveform Database Matched Subset v1.0 | <https://doi.org/10.13026/c2294b> | ODbL 1.0 | Downloaded by `scripts/build_mimic_segments.py` (open access; no clinical data are used) |
 | PPG-BP annotations of the pyPPG benchmark | <https://doi.org/10.5281/zenodo.10523285> | CC BY 4.0 | Download `PPG-BP_annot.zip` by hand (see below); used only to validate the fiducial-point detector |
 
-The annotations are needed by `scripts/validate_fiducials.py` (step 3):
+The annotations are needed by `scripts/validate_fiducials.py` (step 3). Run these commands in bash (on Windows, Git Bash):
 
 ```bash
 mkdir -p data/raw/pyppg_annot/extracted
@@ -41,7 +41,7 @@ unzip data/raw/pyppg_annot/PPG-BP_annot.zip -d data/raw/pyppg_annot/extracted
 `data_lists/` fixes which patients and records were used (see `data_lists/README.md`):
 
 - `vitaldb_split.csv`: the patient-level split (training, calibration, test), fixed before any model was fitted. `scripts/make_split.py` uses it and reports any difference from a new download.
-- `mimic3wdb_subjects.csv`: the MIMIC-III subjects visited, with the record read. In the paper, subjects were visited in random order until a time limit, so the selection depended on download speed. `run_all.py` therefore reads the listed subjects with `--subject-list`; re-reading two listed subjects gave segments identical to those of the paper.
+- `mimic3wdb_subjects.csv`: the MIMIC-III subjects visited, with the record read. In the paper, subjects were visited in random order until a time limit, so the selection depended on download speed. `run_all.py` therefore reads the listed subjects with `--subject-list`, retries subjects that fail on a network error, and at the end compares the start and the number of kept segments of each subject with the list (all 454 subjects matched in our rerun).
 
 ## Running the analysis
 
@@ -84,7 +84,7 @@ Downloads depend on the network.
 | Supplementary data (Excel) | `make_supplementary_data.py` | `results/tables/supplementary_data.xlsx` and the same tables as CSV files |
 | Numbers in the text | the evaluation and exploratory steps | `results/conformal/`, `results/external/`, `results/review*/`, `results/shap/` |
 
-Figures are written as PNG, SVG, PDF and EPS under `results/figures/`.
+Figures are written as PNG, SVG, PDF and EPS under `results/figures/`. The files submitted with the paper carry the numbers of the figures instead: `figure1` (study_design), `figure2a_2b` (main_accuracy), `figure3a_3b` (phase4_coverage_by_sbp), `figure4` (main_subgroups), `figure5a_5b` (phase5_coverage_source_vs_target), `figure6a_6c` (phase5_recalibration) and `figure7a_7b` (main_withholding); the supplementary figures keep the names above.
 
 ## Reproducibility
 
@@ -92,7 +92,7 @@ Figures are written as PNG, SVG, PDF and EPS under `results/figures/`.
 - Results that depend on the feature model are reproduced exactly: the features and all later steps were recomputed with the final code and were identical byte for byte, except for the column of computing times.
 - The waveform model is not exactly reproducible on several CPU threads, because parallel sums are added in a varying order. `scripts/train_waveform_model.py --deterministic` trains on one thread and reproduces exactly, at about twice the time. The models of the paper were trained without this option. A deterministic run gave an SBP MAE of 13.37 mmHg on the validation patients, against 13.51 mmHg for the model of the paper; five runs with different seeds ranged from 13.34 to 13.50 mmHg.
 - `reference_results/` holds tables 1 and 2 and the supplementary data of the paper as CSV files; `scripts/compare_reference.py` compares a reproduction with them.
-- Analyses marked *exploratory* were added after the analysis plan, many in response to review.
+- The analysis plan, fixed before any model was fitted, is in `analysis_plan.md` (an English translation of the Japanese original; the section numbers cited in the code refer to it). Analyses marked *exploratory* were added after the analysis plan, many in response to review.
 
 ## Layout
 
@@ -104,6 +104,7 @@ tests/              unit tests (uv run pytest)
 data_lists/         the patients and records of the paper (identifiers only)
 reference_results/  tables of the paper as CSV files, for comparison
 assets/fonts/       TeX Gyre Heros, the Helvetica-compatible font of the figures (GUST Font License)
+analysis_plan.md    the analysis plan, fixed before any model was fitted (English translation)
 ```
 
 ## Names in the code and in the paper

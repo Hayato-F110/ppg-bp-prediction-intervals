@@ -34,6 +34,8 @@ ANNOT_KEYS = {"onset": "os", "peak": "pk"} | {p: p for p in POINTS}
 
 
 def load_signals():
+    if not (ANNOT_DIR / "PPG-BP_ref1.mat").exists():
+        raise SystemExit(f"annotations not found in {ANNOT_DIR}; download them as described in README.md (Data)")
     data = loadmat(ANNOT_DIR / "PPG-BP_ref1.mat")["ppg_data"][0]
     return {str(r["name"][0]): r["sig"].ravel().astype(np.float64) for r in data}
 

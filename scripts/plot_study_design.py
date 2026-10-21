@@ -3,7 +3,7 @@
 The numbers are those of Section 2 of the paper (patients and segments as in Table S1); no result file is read.
 
 usage: uv run python -X utf8 scripts/plot_study_design.py
-output: results/figures/study_design (.png and .svg)
+output: results/figures/study_design (.png, .svg, .pdf and .eps)
 """
 
 import matplotlib.pyplot as plt
