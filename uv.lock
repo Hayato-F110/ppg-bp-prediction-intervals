@@ -1282,7 +1282,6 @@ wheels = [
 name = "ppg-bp-prediction-intervals"
 version = "1.2.0"
 source = { editable = "." }
-default-groups = ["dev", "paper"]
 dependencies = [
     { name = "lightgbm" },
     { name = "matplotlib" },
