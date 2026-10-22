@@ -6,8 +6,9 @@ The values printed in the paper, as CSV files (aggregate results only; no patien
 |---|---|
 | `table1_characteristics.csv` | Table 1: patients and segments of each part |
 | `table2_methods.csv` | Table 2: patient-level coverage by method (with 95% confidence intervals) and median width |
-| `supplement_tables.md` | Tables S1–S8 of the supplementary material, as written by `scripts/make_tables.py` |
-| `supplementary_data/*.csv` | The supplementary data of the paper, one file per sheet of the Excel workbook; `README.csv` gives the title, the description and the contents of each sheet |
+| `supplement_tables.md` | Tables S1–S8 of the supplementary material, as written by `scripts/make_tables.py`, and tables S14–S16 with the values of figure 3(b) and figures S9–S10 |
+| `review4/*.csv` | Exploratory analyses cited in the text and the supplement (`scripts/explore_review4_analyses.py`): sets calibrated by true SBP, the group-wise margin at a predicted SBP of 160 mmHg or higher, carrying the reference forward without the PPG, MIMIC-III without the patient with values typical of a newborn, hypotension, and the error on the training data (fit_accuracy.csv) |
+| `supplementary_data/*.csv` | The supplementary data of the paper (the paper cites these files), one file per analysis; `README.csv` gives the title, the description and the contents of each sheet |
 
 After a reproduction (`scripts/run_all.py`), `scripts/compare_reference.py` compares these files with the ones the
 pipeline writes to `results/tables/`. The waveform model is not exactly reproducible on several CPU threads, so its

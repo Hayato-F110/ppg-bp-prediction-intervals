@@ -18,32 +18,38 @@ import pandas as pd
 from scipy.stats import wasserstein_distance
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
-from ppg_bp.conformal.core import (
-    calibrate,
-    cqr_interval,
-    cqr_scores,
-    split_interval,
-    split_scores,
-    subject_weights,
+from ppg_bp.conformal.core import subject_weights
+from ppg_bp.conformal.pipeline import METHODS, band, intervals, read_predictions
+from ppg_bp.conformal.shift import (
+    SBP_SHARE_EDGES,
+    domain_training_sample,
+    domain_weights,
+    recalibration,
+    sbp_shares,
+    sbp_weights,
+    weighted_conformal,
 )
-from ppg_bp.conformal.pipeline import (
-    METHODS,
-    band,
-    intervals,
-    quantile_column,
-    read_predictions,
-)
-from ppg_bp.conformal.shift import domain_weights, weighted_conformal
-from ppg_bp.constants import SBP_HIGH, SBP_LOW
 from ppg_bp.evaluation.coverage import evaluate
 from ppg_bp.features.extract import FEATURE_NAMES
 from ppg_bp.models.dataset import load_split
 
 MODELS = ("lightgbm", "cnn")
 TARGETS = ("sbp", "dbp", "mbp")
-RECALIBRATION_SIZES = (5, 10, 20, 50, 100)  # analysis plan, Section 6.3
-REPEATS = 200
 COLUMNS = list(FEATURE_NAMES)
+# columns of recalibration.csv (the shared function also returns those of the offset correction)
+RECALIBRATION_COLUMNS = [
+    "model",
+    "method",
+    "subjects",
+    "repeat",
+    "correction",
+    "coverage",
+    "width_median",
+    "coverage_sbp_ge160",
+    "coverage_sbp_lt90",
+    "coverage_sbp_ge160_patient",
+    "patients_sbp_ge160",
+]
 
 
 def add_strata(table, settings):
@@ -94,66 +100,6 @@ def point_accuracy(ext):
     return pd.DataFrame(rows)
 
 
-def recalibration(ext, settings, seed, repeats=REPEATS):
-    """6.3: recalibrate on some target subjects and evaluate on the rest."""
-    target, level = settings["primary_target"], settings["primary_level"]
-    q_lo, q_hi = settings["levels"][level]
-    rng = np.random.default_rng(seed)
-    subjects = ext["subjectid"].unique()
-    code = pd.Series(np.arange(len(subjects)), index=subjects)[ext["subjectid"]].to_numpy()
-    high, low = (ext[target] >= SBP_HIGH).to_numpy(), (ext[target] < SBP_LOW).to_numpy()
-    rows = []
-    for model in MODELS:
-        mean = ext[f"{target}_{model}_mean"].to_numpy()
-        lo, hi = (
-            ext[quantile_column(target, model, q_lo)].to_numpy(),
-            ext[quantile_column(target, model, q_hi)].to_numpy(),
-        )
-        lo, hi = np.minimum(lo, hi), np.maximum(lo, hi)
-        y = ext[target].to_numpy()
-        scores = {"split": split_scores(y, mean), "cqr": cqr_scores(y, lo, hi)}
-        for size in RECALIBRATION_SIZES:
-            if size > len(subjects) - 30:
-                continue
-            for repeat in range(repeats):
-                chosen = np.zeros(len(subjects), dtype=bool)
-                chosen[rng.choice(len(subjects), size=size, replace=False)] = True
-                in_cal = chosen[code]
-                for method, score in scores.items():
-                    q = calibrate(score[in_cal], code[in_cal], 1 - level)
-                    lower, upper = (
-                        split_interval(mean[~in_cal], q)
-                        if method == "split"
-                        else cqr_interval(lo[~in_cal], hi[~in_cal], q)
-                    )
-                    covered = (y[~in_cal] >= lower) & (y[~in_cal] <= upper)
-                    per = pd.Series(covered).groupby(code[~in_cal]).mean()
-                    is_high = high[~in_cal]
-                    per_high = pd.Series(covered[is_high]).groupby(code[~in_cal][is_high]).mean()
-                    rows.append(
-                        {
-                            "model": model,
-                            "method": method,
-                            "subjects": size,
-                            "repeat": repeat,
-                            "correction": q[None],
-                            "coverage": per.mean(),
-                            "width_median": float(np.median(upper - lower)),
-                            "coverage_sbp_ge160": covered[high[~in_cal]].mean() if high[~in_cal].any() else np.nan,
-                            "coverage_sbp_lt90": covered[low[~in_cal]].mean() if low[~in_cal].any() else np.nan,
-                            "coverage_sbp_ge160_patient": per_high.mean() if len(per_high) else np.nan,
-                            "patients_sbp_ge160": len(per_high),
-                        }
-                    )
-    return pd.DataFrame(rows)
-
-
-def domain_training_sample(config, seed) -> pd.DataFrame:
-    """Source segments for fitting the domain classifier: up to 40 segments per training patient."""
-    train = load_split(config, "train")
-    return train.groupby("subjectid").sample(n=40, replace=True, random_state=seed).drop_duplicates(["caseid", "index"])
-
-
 def weighted_rows(cal, ext, ratio_cal, ratio_ext, settings, n_boot, seed) -> pd.DataFrame:
     """6.2: weighted conformal prediction for every model and level."""
     rows = []
@@ -184,15 +130,12 @@ def label_shift(cal, ext, settings, auc):
             for name, table in (("source", cal), ("target", ext))
             for stat in ("mean", "std")
         ]
-    edges = np.arange(40, 261, 5)
+    source_shares = sbp_shares(cal[target], cal["subjectid"])
+    without_target = sbp_shares(ext[target], ext["subjectid"]) == 0
     for model in MODELS:
         lower, upper, _ = intervals(cal, ext, target, model, "split", level, settings)
         covered = ((ext[target] >= lower) & (ext[target] <= upper)).to_numpy()
-        src = np.histogram(cal[target], edges, weights=subject_weights(cal["subjectid"]))[0]
-        tgt = np.histogram(ext[target], edges, weights=subject_weights(ext["subjectid"]))[0]
-        ratio = np.divide(src / src.sum(), tgt / tgt.sum(), out=np.zeros_like(src), where=tgt > 0)
-        which = np.clip(np.digitize(ext[target], edges) - 1, 0, len(ratio) - 1)
-        weights = subject_weights(ext["subjectid"]) * ratio[which]
+        weights = sbp_weights(ext[target], ext["subjectid"], source_shares, SBP_SHARE_EDGES)
         rows.append(
             {
                 "quantity": f"coverage_{model}_split_as_is",
@@ -208,7 +151,7 @@ def label_shift(cal, ext, settings, auc):
         rows.append(
             {
                 "quantity": f"source_sbp_mass_without_target_support_{model}",
-                "value": float(src[tgt == 0].sum() / src.sum()),
+                "value": float(source_shares[without_target].sum()),
             }
         )
     return pd.DataFrame(rows)
@@ -228,8 +171,10 @@ def weighting_analysis(config, cal, ext, out_dir, dataset, settings, n_boot, see
         and ext_features["subjectid"].tolist() == ext["subjectid"].tolist()
     ):
         raise AssertionError("external features and estimates are not in the same order")
+    classifier = settings["domain_classifier"]
+    train = domain_training_sample(load_split(config, "train"), classifier["segments_per_patient"], seed)
     ratio_cal, ratio_ext, auc, gain = domain_weights(
-        domain_training_sample(config, seed), cal_features, ext_features, COLUMNS, seed
+        train, cal_features, ext_features, COLUMNS, seed, classifier["params"]
     )
     gain.to_csv(out_dir / "domain_classifier_importance.csv", header=["gain_share"], float_format="%.5f")
     weighted_rows(cal, ext, ratio_cal, ratio_ext, settings, n_boot, seed).to_csv(
@@ -241,16 +186,18 @@ def weighting_analysis(config, cal, ext, out_dir, dataset, settings, n_boot, see
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="mimic3wdb")
-    parser.add_argument("--quick", action="store_true")
+    parser.add_argument("--quick", action="store_true", help="small run for testing; results go to a quick/ folder")
     args = parser.parse_args()
     config = load_config()
     settings = load_settings("conformal")
     cuts = load_settings("sqi_tertiles")["sqi_template"]
     seed = config["seed"]
     results = PROJECT_ROOT / config["paths"]["results"]
-    out_dir = results / "external" / args.dataset
+    out_dir = results / "external" / args.dataset / ("quick" if args.quick else "")
+    out_dir.mkdir(parents=True, exist_ok=True)
     n_boot = 100 if args.quick else settings["bootstrap"]
-    repeats = 5 if args.quick else REPEATS
+    recalibration_settings = settings["recalibration"]
+    repeats = 5 if args.quick else recalibration_settings["repeats"]
 
     cal = read_predictions(results, "calibration", cuts)
     ext = add_strata(read_predictions(results, args.dataset, cuts), settings)
@@ -264,7 +211,8 @@ def main():
     )
     point_accuracy(ext).to_csv(out_dir / "point_accuracy.csv", index=False, float_format="%.6f")
     print("6.1 done", flush=True)
-    recalibration(ext, settings, seed, repeats).to_csv(out_dir / "recalibration.csv", index=False, float_format="%.6f")
+    recalibrated = recalibration(ext, settings, seed, repeats, tuple(recalibration_settings["patients"]), MODELS)
+    recalibrated[RECALIBRATION_COLUMNS].to_csv(out_dir / "recalibration.csv", index=False, float_format="%.6f")
     print("6.3 done", flush=True)
     auc = weighting_analysis(config, cal, ext, out_dir, args.dataset, settings, n_boot, seed)
     print(f"6.2 done (AUC of the classifier {auc:.3f})", flush=True)

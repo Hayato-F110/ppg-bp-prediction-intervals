@@ -12,7 +12,7 @@ import pandas as pd
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
 from ppg_bp.conformal.core import conformal_quantile, subject_weights
-from ppg_bp.conformal.pipeline import band
+from ppg_bp.conformal.pipeline import band, band_names
 from ppg_bp.constants import MAIN_LEVEL
 
 LEVEL = MAIN_LEVEL
@@ -59,7 +59,7 @@ def main():
             )
     out = pd.DataFrame(rows)
     out.to_csv(results / "exploratory_required_width.csv", index=False, float_format="%.6f")
-    order = ["<90", "90–<100", "100–<120", "120–<140", "140–<160", "≥160"]
+    order = band_names(settings["strata"]["sbp"])
     pd.set_option("display.width", 220, "display.float_format", "{:.1f}".format)
     for model in ("lightgbm", "cnn"):
         print(model)

@@ -6,7 +6,7 @@ All differences are waveform model minus feature model.
 1. SBP MAE in the test patients (mmHg), over segments as in the paper. In a bootstrap over patients, the MAE of
    the drawn patients' segments is computed for both models and differenced (the same patients for both).
 2. Coverage of nominal 90% SBP intervals (percentage points): per-patient differences with paired_difference
-   (ppg_bp.evaluation.coverage), as in the supplementary data (sheet differences_methods). VitalDB test patients
+   (ppg_bp.evaluation.coverage), as in the supplementary data (differences_methods.csv). VitalDB test patients
    at true SBP >= 160 and < 90, and all of MIMIC-III; split conformal and CQR.
 
 output: results/review2/model_comparison.csv

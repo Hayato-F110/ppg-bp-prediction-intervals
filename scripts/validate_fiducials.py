@@ -15,13 +15,13 @@ import pandas as pd
 from scipy.io import loadmat
 from scipy.signal import resample_poly
 
-from ppg_bp.config import PROJECT_ROOT
+from ppg_bp.config import PROJECT_ROOT, load_config
 from ppg_bp.features.fiducials import POINTS, analyse
 
 TIGHT_MS, LOOSE_MS = 10, 20  # error limits reported (ms)
 
 ANNOT_DIR = PROJECT_ROOT / "data" / "raw" / "pyppg_annot" / "extracted"
-OUT_DIR = PROJECT_ROOT / "results" / "fiducial_validation"
+OUT_DIR = PROJECT_ROOT / load_config()["paths"]["results"] / "fiducial_validation"
 ANNOTATORS = ("MG", "PC")
 NATIVE_FS = 1000
 RATES = (1000, 125)
@@ -60,7 +60,7 @@ def first_time(times):
 def reference(annots, name):
     """Mean and difference of the two annotators. Beat onset and end are the first and second annotations."""
     per_annotator = [a[name] for a in annots]
-    ref = {p: np.mean([first_time(a[p]) for a in per_annotator]) for p in ANNOT_KEYS}
+    ref = {p: float(np.mean([first_time(a[p]) for a in per_annotator])) for p in ANNOT_KEYS}
     diff = {p: first_time(per_annotator[0][p]) - first_time(per_annotator[1][p]) for p in ANNOT_KEYS}
     ends = [a["onset"][1] if len(a["onset"]) > 1 else np.nan for a in per_annotator]
     ref["end"] = float(np.mean(ends))

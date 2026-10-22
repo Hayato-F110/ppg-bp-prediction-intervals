@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ppg_bp.config import load_settings
 from ppg_bp.conformal.core import conformal_quantile, split_scores, subject_weights
 from ppg_bp.conformal.pipeline import quantile_column
 from ppg_bp.conformal.shift import domain_weights, patient_effective_share, weighted_conformal
@@ -76,7 +77,8 @@ def test_domain_classifier_auc_follows_the_shift(shift, low, high):
     train = make_table(150, 0.0, seed=5)
     cal = make_table(100, 0.0, seed=6)
     ext = make_table(150, shift, seed=7)
-    ratio_cal, ratio_ext, auc, gain = domain_weights(train, cal, ext, ["x"], seed=0)
+    params = load_settings("conformal")["domain_classifier"]["params"]
+    ratio_cal, ratio_ext, auc, gain = domain_weights(train, cal, ext, ["x"], seed=0, params=params)
     assert low < auc < high
     assert ratio_cal.shape == (len(cal),)
     assert ratio_ext.shape == (len(ext),)

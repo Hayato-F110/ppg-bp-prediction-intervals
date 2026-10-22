@@ -47,8 +47,9 @@ def summarise(subject_table: pd.DataFrame, n_boot: int = 2000, seed: int = 0, no
     out["width_median"], out["width_q25"], out["width_q75"] = (float(width.quantile(q)) for q in (0.5, 0.25, 0.75))
     if nominal is not None:
         covered = subject_table["covered"]
-        out["subjects_below_minus10"] = float((covered < nominal - 0.10).mean())
-        out["subjects_below_minus20"] = float((covered < nominal - 0.20).mean())
+        # rounded, so that 0.8 - 0.1 is 0.7 and not 0.7000000000000001 (a patient at exactly 70% is not below)
+        out["subjects_below_minus10"] = float((covered < round(nominal - 0.10, 9)).mean())
+        out["subjects_below_minus20"] = float((covered < round(nominal - 0.20, 9)).mean())
     return out
 
 
@@ -75,6 +76,13 @@ def evaluate(
                 }
             )
     return pd.DataFrame(rows)
+
+
+def threshold_sides(lower: ArrayLike, upper: ArrayLike, threshold: float) -> tuple[np.ndarray, np.ndarray]:
+    """For each interval, whether it lies wholly at or above threshold, and whether it lies wholly below it.
+    An interval that is neither contains the threshold (undecided)."""
+    lower, upper = np.asarray(lower, dtype=np.float64), np.asarray(upper, dtype=np.float64)
+    return lower >= threshold, upper < threshold
 
 
 def paired_difference(a: ArrayLike, b: ArrayLike, subjects: ArrayLike, n_boot: int, seed: int) -> dict:

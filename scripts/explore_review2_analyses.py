@@ -28,7 +28,7 @@ MIN_SEGMENTS_IN_BAND = 6  # one minute of segments
 HIGH_PULSE_PRESSURE = 100  # mmHg; possible overshoot of the arterial line
 
 LEVEL = MAIN_LEVEL
-SBP_EDGES = [90, 100, 120, 140, 160]
+SBP_EDGES = load_settings("conformal")["strata"]["sbp"]
 MBP_EDGES = [70, 80, 90, 100, 110]
 PULSE_EDGES = [60, 80, 100]
 
@@ -110,7 +110,7 @@ def extreme_reference(test):
     return pd.DataFrame(rows)
 
 
-def slope_curve(cal, test):
+def slope_curve(cal, test, results):
     """Shrinkage model: estimate = a + b x true value + error (SD s). b is varied and a is set so that the mean
     estimate stays at its observed value (the estimates are on average below the true values; until 2026-10-15 the
     code centred them on the true mean instead, contrary to the description). The margin q is found under the same
@@ -122,7 +122,9 @@ def slope_curve(cal, test):
     high = y_test >= SBP_HIGH
     grid = np.round(np.arange(0.3, 1.0001, 0.05), 2)
     rows = []
-    for s in (9.6, 5.0):
+    # residual SD of this study (results/review/shrinkage_model.csv, rounded to 0.1 mmHg) and a smaller one
+    fitted = pd.read_csv(results / "review" / "shrinkage_model.csv", index_col=0)["value"]
+    for s in (round(float(fitted["residual_sd"]), 1), 5.0):
         for b in grid:
             # Calibration score |y - estimate| with y - estimate = (1 - b)(y - mean) - offset - e;
             # its quantile is found numerically (equal weight per patient)
@@ -253,7 +255,7 @@ def main():
     print("2. MBP bands done", flush=True)
     extreme_reference(test).to_csv(out / "extreme_reference.csv", index=False, float_format="%.6f")
     print("3. pulse pressure at extreme SBP done", flush=True)
-    slope_curve(cal, test).to_csv(out / "slope_curve.csv", index=False, float_format="%.6f")
+    slope_curve(cal, test, results).to_csv(out / "slope_curve.csv", index=False, float_format="%.6f")
     print("4. slope curve done", flush=True)
     recalibration_below90(results).to_csv(out / "recalibration_below90.csv", index=False, float_format="%.6f")
     print("5. recalibrations below 90% done", flush=True)

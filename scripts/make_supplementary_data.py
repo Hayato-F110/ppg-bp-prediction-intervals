@@ -1,13 +1,14 @@
-"""Supplementary data of the paper (Excel workbook): the exact values behind the figures, one sheet per analysis.
+"""Supplementary data of the paper (CSV files): the exact values behind the figures, one file per analysis.
 
 The values are copied by the program from the output of scripts/make_tables.py (results/tables/supplement_tables.md),
-not by hand. Sheets are named by their content, not by table numbers. As IOP asks, the title (at most 30 characters)
-and a description (at most 30 words) are inside the file, on the first sheet "README".
+not by hand. Files are named by their content, not by table numbers. The title (at most 30 characters, as IOP asks)
+and a description (at most 30 words) are in README.csv, with the contents of each file. The paper cites these CSV
+files in the code repository (reference_results/supplementary_data/); there is no Excel version (one format only).
 
 usage: uv run python -X utf8 scripts/make_supplementary_data.py
 input: results/tables/supplement_tables.md
-output: results/tables/supplementary_data.xlsx, and the same tables as CSV files (one per sheet, with README.csv)
-        in results/tables/supplementary_data/; the CSV files of the paper are also in reference_results/
+output: results/tables/supplementary_data/*.csv (one file per analysis, with README.csv); the files of the paper
+        are in reference_results/supplementary_data/
 """
 
 import re
@@ -18,15 +19,14 @@ from ppg_bp.config import PROJECT_ROOT, load_config
 
 TABLES = PROJECT_ROOT / load_config()["paths"]["results"] / "tables"
 SOURCE = TABLES / "supplement_tables.md"
-OUT = TABLES / "supplementary_data.xlsx"
 CSV_DIR = TABLES / "supplementary_data"  # open format, as IOP's data policy prefers
 TITLE = "Supplementary data"
 DESCRIPTION = (
     "Exact values behind the figures: patient-level coverage, interval width and errors of the prediction intervals, "
     "by method, dataset and subgroup."
 )
-# sheet name -> (start of the heading of the table in make_tables.py, part (a), (b), ... of that table; None: the first)
-SHEETS = {
+# file name -> (start of the heading of the table in make_tables.py, part (a), (b), ... of that table; None: the first)
+FILES = {
     "coverage_overall": ("## Table S5.", None),
     "coverage_by_band": ("## Table S6.", None),
     "coverage_by_band_dbp": ("## Table S6.", 1),
@@ -38,6 +38,10 @@ SHEETS = {
     "alternatives": ("## Table S12.", 1),
     "differences_models": ("## Table S12.", 2),
     "reference_reading": ("## Table S13.", 2),
+    "accuracy": ("## Table S14.", None),
+    "threshold_sorting": ("## Table S15.", None),
+    "distribution_sbp": ("## Table S16.", 0),
+    "distribution_coverage": ("## Table S16.", 1),
 }
 
 
@@ -59,26 +63,22 @@ def frame(table: str) -> pd.DataFrame:
 def main() -> None:
     found = blocks(SOURCE.read_text(encoding="utf-8"))
     readme = [("Title", TITLE), ("Description", DESCRIPTION), ("", "")]
-    sheets = {}
-    for name, (heading, part) in SHEETS.items():
+    files = {}
+    for name, (heading, part) in FILES.items():
         title, body = next((h, b) for h, b in found.items() if h.startswith(heading))
         tables = re.findall(r"(?:^\|.*\n)+", body, flags=re.MULTILINE)
         notes = [line for line in body.splitlines() if line and not line.startswith("|")]
-        sheets[name] = frame(tables[part or 0])
+        files[name] = frame(tables[part or 0])
         caption = re.sub(r"^## Table S\d+\. ", "", title)
         if part is not None:
             caption += " " + re.sub(r"\*\*", "", next(n for n in notes if n.startswith(f"**({'abc'[part]})")))
         explanations = [n for n in notes if not n.startswith("**(")]  # notes of the table (meaning of symbols etc.)
         readme.append((name, " ".join([caption, *explanations])))
-    with pd.ExcelWriter(OUT) as writer:
-        pd.DataFrame(readme, columns=["Sheet", "Contents"]).to_excel(writer, sheet_name="README", index=False)
-        for name, table in sheets.items():
-            table.to_excel(writer, sheet_name=name, index=False)
     CSV_DIR.mkdir(exist_ok=True)
-    pd.DataFrame(readme, columns=["Sheet", "Contents"]).to_csv(CSV_DIR / "README.csv", index=False, lineterminator="\n")
-    for name, table in sheets.items():
+    pd.DataFrame(readme, columns=["File", "Contents"]).to_csv(CSV_DIR / "README.csv", index=False, lineterminator="\n")
+    for name, table in files.items():
         table.to_csv(CSV_DIR / f"{name}.csv", index=False, lineterminator="\n")
-    print(f"{OUT.relative_to(PROJECT_ROOT)}: {len(sheets)} sheets; CSV files in {CSV_DIR.relative_to(PROJECT_ROOT)}")
+    print(f"{CSV_DIR.relative_to(PROJECT_ROOT)}: {len(files)} CSV files and README.csv")
 
 
 if __name__ == "__main__":

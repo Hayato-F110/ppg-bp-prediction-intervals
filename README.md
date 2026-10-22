@@ -1,7 +1,7 @@
 # Prediction intervals for calibration-free cuffless blood pressure
 
 
-Code for the paper *Where Do Prediction Intervals Fail for Calibration-Free Cuffless Blood Pressure? A Patient-Level Analysis Within and Across Datasets* (Hayato Fukushima; submitted to Physiological Measurement).
+Code for the paper *Prediction Intervals for Calibration-Free, PPG-Only Blood Pressure Fail at Extreme Pressures: A Patient-Level Analysis Within and Across Datasets* (Hayato Fukushima; submitted to Physiological Measurement).
 
 Two models estimate blood pressure from the photoplethysmogram (PPG) alone: a feature model (LightGBM on 42 PPG features) and a waveform model (a one-dimensional CNN). Conformal prediction gives each estimate a prediction interval. The code evaluates how often these intervals contain the true pressure, per patient and by range of the true pressure, within VitalDB and on MIMIC-III.
 
@@ -54,6 +54,14 @@ uv run python scripts/run_all.py               # everything after the downloads
 uv run python scripts/compare_reference.py     # compare tables 1 and 2 and the supplementary data with the paper
 ```
 
+"Everything after the downloads" includes the features (about 67 min) and six training runs of the waveform model (about 6 h; see the times below). With the features already computed and the waveform models already trained (`results/waveform_model`, `results/waveform_model_seed1` to `seed5`), run the steps around them with `--from` and `--to`:
+
+```bash
+uv run python scripts/run_all.py --from validate_fiducials --to validate_fiducials
+uv run python scripts/run_all.py --from summarise_features --to train_feature_models
+uv run python scripts/run_all.py --from plot_validation --to compare_reference
+```
+
 Times measured on one laptop PC (AMD Ryzen 5 7430U, 6 cores / 12 threads, 16 GB memory, no GPU), October 2026:
 
 | Step | Time |
@@ -64,7 +72,7 @@ Times measured on one laptop PC (AMD Ryzen 5 7430U, 6 cores / 12 threads, 16 GB 
 | Features (8 processes) | about 67 min |
 | Waveform model training | about 1 h per run; the main run and five further seeds (table S8) take about 6 h; about 2 h per run with `--deterministic` (one thread) |
 | Feature models, estimates, evaluation, tables and figures | about 40 min in total; estimates for the calibration and test patients take about 22 min of this |
-| Exploratory analyses (`explore_*` steps) | not timed separately |
+| Exploratory analyses (`explore_*` steps) | about 8 min in total |
 
 Downloads depend on the network.
 
@@ -75,16 +83,17 @@ Downloads depend on the network.
 | Table 1 | `make_characteristics.py` | `results/tables/characteristics.csv` |
 | Table 2 | `make_table2.py` | `results/tables/table2_methods.csv` |
 | Figure 1 | `plot_study_design.py` (the numbers are those of section 2) | `results/figures/study_design` |
-| Figures 2, 4, 7; figures S1, S2 | `plot_main_figures.py` | `main_accuracy`, `main_subgroups`, `main_withholding`, `supp_bland_altman_test`, `supp_slope_curve` |
-| Figure 3; figure S6 | `plot_conformal.py` | `phase4_coverage_by_sbp`, `phase4_calibration_size` |
-| Figures 5, 6 | `plot_external.py` | `phase5_coverage_source_vs_target`, `phase5_recalibration` |
-| Figures S3, S4, S5, S7 | `plot_supplement.py` | `supp_true_vs_predicted`, `supp_coverage_by_band`, `supp_differences`, `supp_reference_reading` |
-| Figure S8 | `explain_models.py` | `phase6_shap` |
-| Tables S1–S8 | `make_tables.py` | `results/tables/supplement_tables.md`: tables S1–S4 under the same numbers; S5–S8 are parts (b), (a), (d) and (e) of its last table |
-| Supplementary data (Excel) | `make_supplementary_data.py` | `results/tables/supplementary_data.xlsx` and the same tables as CSV files |
+| Figure 2 | `plot_model_pipeline.py` | `results/figures/model_pipeline` |
+| Figures 3, 5, 8; figures S1, S7 | `plot_main_figures.py` | `main_accuracy`, `main_subgroups`, `main_withholding`, `supp_bland_altman_test`, `supp_slope_curve` |
+| Figure 4; figure S2 | `plot_conformal.py` | `phase4_coverage_by_sbp`, `phase4_calibration_size` |
+| Figures 6, 7 | `plot_external.py` | `phase5_coverage_source_vs_target`, `phase5_recalibration` |
+| Figures S4, S5, S6, S8, S9, S10 | `plot_supplement.py` | `supp_true_vs_predicted`, `supp_differences`, `supp_coverage_by_band`, `supp_reference_reading`, `supp_distributions`, `supp_threshold_sorting` |
+| Figure S3 | `explain_models.py` | `phase6_shap` |
+| Tables S1–S8 | `make_tables.py` | `results/tables/supplement_tables.md`: tables S1–S4 under the same numbers; S5–S8 are parts (a), (b), (d) and (e) of table S13; tables S14–S16 hold the values of figure 3(b) and figures S9–S10 |
+| Supplementary data (CSV) | `make_supplementary_data.py` | `results/tables/supplementary_data/` (one CSV file per analysis, with `README.csv`) |
 | Numbers in the text | the evaluation and exploratory steps | `results/conformal/`, `results/external/`, `results/review*/`, `results/shap/` |
 
-Figures are written as PNG, SVG, PDF and EPS under `results/figures/`. The files submitted with the paper carry the numbers of the figures instead: `figure1` (study_design), `figure2a_2b` (main_accuracy), `figure3a_3b` (phase4_coverage_by_sbp), `figure4` (main_subgroups), `figure5a_5b` (phase5_coverage_source_vs_target), `figure6a_6c` (phase5_recalibration) and `figure7a_7b` (main_withholding); the supplementary figures keep the names above.
+Figures are written as PNG, SVG, PDF and EPS under `results/figures/`. The files submitted with the paper carry the numbers of the figures instead: `figure1` (study_design), `figure2` (model_pipeline), `figure3a_3b` (main_accuracy), `figure4a_4b` (phase4_coverage_by_sbp), `figure5` (main_subgroups), `figure6a_6b` (phase5_coverage_source_vs_target), `figure7a_7c` (phase5_recalibration) and `figure8a_8b` (main_withholding); the supplementary figures keep the names above.
 
 ## Reproducibility
 

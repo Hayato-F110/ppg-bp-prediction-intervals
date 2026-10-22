@@ -1,0 +1,14 @@
+# One line ending (LF) in the repository for every text file, whichever tool wrote it (2026-10-22).
+# Without this, files written by Windows tools (CRLF) and by others (LF) changed every line when rewritten.
+* text=auto eol=lf
+
+# binary files: never converted
+*.otf binary
+*.docx binary
+*.xls binary
+*.zip binary
+*.png binary
+*.pdf binary
+*.eps binary
+*.parquet binary
+*.npz binary

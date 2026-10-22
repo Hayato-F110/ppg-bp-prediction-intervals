@@ -118,7 +118,7 @@ def read_pieces(_record_name: str, pn_dir: str, master) -> tuple:
             continue
         take = min(seg_len, quota) // seg * seg
         record = read_segment(seg_name, pn_dir, header, take)
-        if record.p_signal is None or record.sig_name is None:
+        if not isinstance(record, wfdb.Record) or record.p_signal is None or record.sig_name is None:
             raise AssertionError("the record has no signal data")
         ppg_parts.append(record.p_signal[:, record.sig_name.index("PLETH")])
         abp_parts.append(record.p_signal[:, record.sig_name.index("ABP")])
@@ -147,8 +147,10 @@ def fetch_subject(subject: str, records: list) -> dict:
         pn_dir = f"{DATABASE}/{directory}"
         try:
             master = wfdb.rdheader(name, pn_dir=pn_dir)
-            if not (master.seg_name is not None):
+            if not isinstance(master, wfdb.MultiRecord) or master.seg_name is None:
                 raise AssertionError("not a multi-segment record")
+            if master.fs is None:
+                raise AssertionError("the record has no sampling frequency")
             layout = wfdb.rdheader(master.seg_name[0], pn_dir=pn_dir)
             if not all(s in (layout.sig_name or []) for s in SIGNALS):
                 continue

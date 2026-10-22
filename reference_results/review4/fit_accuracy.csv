@@ -1,0 +1,5 @@
+data,patients,segments,mae
+fitted segments,1504,588647,12.456983
+all segments of the fitting patients,1504,1776785,12.565368
+validation patients,376,422664,13.602200
+test patients,627,724202,13.125870

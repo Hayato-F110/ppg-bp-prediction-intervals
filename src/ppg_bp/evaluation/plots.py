@@ -3,6 +3,7 @@
 Colour: density (amount) uses shades of one hue; lines and notes are neutral. Meaning never depends on colour alone.
 """
 
+import os
 from collections.abc import Sequence
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -19,6 +20,7 @@ from matplotlib.axes import Axes
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
+from matplotlib.patches import FancyBboxPatch
 from numpy.typing import ArrayLike
 
 MIN_SHARE_NOTED = 0.05  # % of points beyond the axis limits above which a note is added
@@ -53,7 +55,11 @@ def signed(value: float, digits: int = 1) -> str:
     return ("−" if rounded < 0 else "+" if rounded > 0 else "") + text
 
 
-def save_figure(fig: Figure, path: Path, panels: ArrayLike | None = None) -> None:
+# no creation date in the vector files; the PostScript backend reads it from SOURCE_DATE_EPOCH instead
+NO_DATE = {".svg": {"Date": None}, ".pdf": {"CreationDate": None}, ".eps": {}}
+
+
+def save_figure(fig: Figure, path: Path, panels: Sequence[Axes] | np.ndarray | None = None) -> None:
     """Save the figure as PNG (200 dpi) and as SVG, PDF and EPS (vector) files of the same name.
 
     The .docx of the paper uses the SVG and the LaTeX version the PDF (sharp at any size). EPS is the format IOP
@@ -61,11 +67,23 @@ def save_figure(fig: Figure, path: Path, panels: ArrayLike | None = None) -> Non
     panels: the axes of a figure with several parts, in reading order; their titles get the labels (a), (b), ...,
     which IOP asks for and which the captions use.
     """
-    for letter, ax in zip("abcdefgh", np.ravel(panels) if panels is not None else [], strict=False):
+    axes = np.ravel(np.asarray(panels, dtype=object)) if panels is not None else []
+    for letter, ax in zip("abcdefgh", axes, strict=False):
         ax.set_title(f"({letter}) {ax.get_title(loc='left')}".rstrip(), loc="left")
     fig.savefig(path, dpi=200)
-    for suffix in (".svg", ".pdf", ".eps"):
-        fig.savefig(Path(path).with_suffix(suffix))
+    # no creation date, so that the same input gives the same file (reproducibility)
+    for suffix in (".svg", ".pdf"):
+        fig.savefig(Path(path).with_suffix(suffix), metadata=NO_DATE[suffix])
+    # the EPS backend takes its date from SOURCE_DATE_EPOCH; set it only while saving
+    previous = os.environ.get("SOURCE_DATE_EPOCH")
+    os.environ["SOURCE_DATE_EPOCH"] = "0"
+    try:
+        fig.savefig(Path(path).with_suffix(".eps"), metadata=NO_DATE[".eps"])
+    finally:
+        if previous is None:
+            os.environ.pop("SOURCE_DATE_EPOCH")
+        else:
+            os.environ["SOURCE_DATE_EPOCH"] = previous
 
 
 def label(
@@ -104,6 +122,7 @@ def apply_style() -> None:
             "font.family": "sans-serif",
             "font.sans-serif": ["TeX Gyre Heros", "Helvetica", "Arial", "DejaVu Sans"],
             "pdf.fonttype": 42,
+            "svg.hashsalt": "ppg_bp",  # fixed ids inside SVG files, so that reruns give identical files
             "ps.fonttype": 3,
             "font.size": MIN_TEXT,
             "axes.titlesize": 9,
@@ -217,3 +236,56 @@ def error_by_band(
     ax.set_ylabel("Estimate − reference (mmHg)")
     ax.grid(axis="x", visible=False)
     return rows
+
+
+# Boxes and arrows of the flow charts (figs. 1 and 2): source dataset, second dataset, shared steps
+FLOW_SOURCE, FLOW_TARGET, FLOW_NEUTRAL = "#e3eefb", "#fbe7dd", "#f1f0ec"
+
+
+def flow_box(ax: Axes, x0: float, y0: float, x1: float, y1: float, title: str, lines: list[str], color: str) -> dict:
+    """A rounded box with a bold title and lines of text; returns the midpoints of its four sides."""
+    ax.add_patch(
+        FancyBboxPatch(
+            (x0, y0),
+            x1 - x0,
+            y1 - y0,
+            boxstyle="round,pad=0,rounding_size=0.012",
+            facecolor=color,
+            edgecolor=AXIS,
+            linewidth=0.8,
+        )
+    )
+    ax.text((x0 + x1) / 2, y1 - 0.02, title, ha="center", va="top", fontsize=MIN_TEXT, fontweight="bold", color=INK)
+    ax.text(
+        (x0 + x1) / 2,
+        y1 - 0.075,
+        "\n".join(lines),
+        ha="center",
+        va="top",
+        fontsize=MIN_TEXT,
+        color=INK_SECONDARY,
+        linespacing=1.3,
+    )
+    return {
+        "left": (x0, (y0 + y1) / 2),
+        "right": (x1, (y0 + y1) / 2),
+        "top": ((x0 + x1) / 2, y1),
+        "bottom": ((x0 + x1) / 2, y0),
+    }
+
+
+def flow_arrow(ax: Axes, start: tuple, end: tuple) -> None:
+    """An arrow from start to end, in data coordinates."""
+    ax.annotate(
+        "",
+        xy=end,
+        xytext=start,
+        arrowprops={
+            "arrowstyle": "-|>",
+            "color": INK_SECONDARY,
+            "linewidth": 0.8,
+            "shrinkA": 1,
+            "shrinkB": 1,
+            "mutation_scale": 7,
+        },
+    )

@@ -51,27 +51,56 @@ def beat_pressures(abp: np.ndarray, fs: int) -> tuple[np.ndarray, np.ndarray, np
     return peaks, abp[peaks], troughs
 
 
-def label_segment(ppg: np.ndarray, abp: np.ndarray, fs: int) -> tuple[str, float, float, float, float]:  # noqa: PLR0911 (one return per exclusion rule)
-    """Label one segment. Returns (reason, SBP, DBP, MBP, pulse rate); the numbers are NaN when excluded."""
-    nan = (np.nan, np.nan, np.nan, np.nan)
+def segment_quantities(ppg: np.ndarray, abp: np.ndarray, fs: int) -> tuple[str, dict | None]:
+    """The first four rules, which every set of rules shares, and the quantities the later rules use.
+
+    Returns (reason, None) when one of the first four rules excludes the segment, and otherwise
+    ("", {"pulse_rate", "sbp_sd", "sbp", "dbp", "mbp"}).
+    """
     if np.isnan(ppg).any() or np.isnan(abp).any():
-        return "nan", *nan
+        return "nan", None
     if abp.min() < ABP_MIN or abp.max() > ABP_MAX:
-        return "abp_range", *nan
+        return "abp_range", None
     if has_flatline(ppg, fs) or has_flatline(abp, fs):
-        return "flatline", *nan
+        return "flatline", None
     peaks, sbp_beats, dbp_beats = beat_pressures(abp, fs)
     if len(peaks) < MIN_BEATS:
-        return "few_beats", *nan
-    pulse_rate = 60.0 / (np.median(np.diff(peaks)) / fs)
-    if not PULSE_RATE_RANGE[0] <= pulse_rate <= PULSE_RATE_RANGE[1]:
-        return "pulse_rate", *nan
-    if sbp_beats.std() > MAX_BEAT_SBP_SD:
-        return "beat_irregular", *nan
-    sbp, dbp = float(sbp_beats.mean()), float(dbp_beats.mean())
-    if sbp - dbp < MIN_PULSE_PRESSURE:
-        return "pulse_pressure", *nan
-    return "ok", sbp, dbp, float(abp.mean()), float(pulse_rate)
+        return "few_beats", None
+    return "", {
+        "pulse_rate": float(60.0 / (np.median(np.diff(peaks)) / fs)),
+        "sbp_sd": float(sbp_beats.std()),
+        "sbp": float(sbp_beats.mean()),
+        "dbp": float(dbp_beats.mean()),
+        "mbp": float(abp.mean()),
+    }
+
+
+def later_rules(
+    quantities: dict,
+    rate_range: tuple[float, float] = PULSE_RATE_RANGE,
+    max_sbp_sd: float = MAX_BEAT_SBP_SD,
+    min_pulse_pressure: float = MIN_PULSE_PRESSURE,
+) -> str:
+    """Reason from the last three rules ("ok" if none applies); the sensitivity analysis widens their limits."""
+    if not rate_range[0] <= quantities["pulse_rate"] <= rate_range[1]:
+        return "pulse_rate"
+    if quantities["sbp_sd"] > max_sbp_sd:
+        return "beat_irregular"
+    if quantities["sbp"] - quantities["dbp"] < min_pulse_pressure:
+        return "pulse_pressure"
+    return "ok"
+
+
+def label_segment(ppg: np.ndarray, abp: np.ndarray, fs: int) -> tuple[str, float, float, float, float]:
+    """Label one segment. Returns (reason, SBP, DBP, MBP, pulse rate); the numbers are NaN when excluded."""
+    nan = (np.nan, np.nan, np.nan, np.nan)
+    reason, quantities = segment_quantities(ppg, abp, fs)
+    if quantities is None:
+        return reason, *nan
+    reason = later_rules(quantities)
+    if reason != "ok":
+        return reason, *nan
+    return "ok", quantities["sbp"], quantities["dbp"], quantities["mbp"], quantities["pulse_rate"]
 
 
 def segment_case(

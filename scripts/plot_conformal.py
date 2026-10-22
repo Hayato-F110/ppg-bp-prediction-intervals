@@ -1,4 +1,4 @@
-"""Fig. 3 (coverage and direction of misses by true SBP) and fig. S6 (number of calibration patients).
+"""Fig. 4 (coverage and direction of misses by true SBP) and fig. S2 (number of calibration patients).
 
 usage: uv run python -X utf8 scripts/plot_conformal.py
 input: results/conformal/coverage.csv, calibration_size.csv
@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ppg_bp.config import PROJECT_ROOT, load_config
+from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
+from ppg_bp.conformal.pipeline import band_labels, band_names
 from ppg_bp.evaluation.plots import (
     AXIS,
     INK,
@@ -25,8 +26,8 @@ from ppg_bp.evaluation.plots import (
     save_figure,
 )
 
-BANDS = ["<90", "90–<100", "100–<120", "120–<140", "140–<160", "≥160"]
-BAND_LABELS = ["<90", "90–99", "100–119", "120–139", "140–159", "≥160"]
+BANDS = band_names(load_settings("conformal")["strata"]["sbp"])
+BAND_LABELS = band_labels(load_settings("conformal")["strata"]["sbp"])
 # fixed colour order (blue, orange, teal, yellow); marker shapes also differ, so colour is not the only cue
 METHODS = [
     ("split", "Split conformal", "#2a78d6", "o"),
@@ -77,15 +78,16 @@ def coverage_panel(ax, rows, split, level, out_path):
     ax.set_ylabel("Patient-level coverage (%)")
     ax.set_title("Coverage by true SBP", loc="left")
     ax.grid(axis="x", visible=False)
-    ax.legend(frameon=False, loc="lower center")
 
 
 def miss_panel(ax, split):
     """Right panel: share of segments above and below the split conformal interval, by band of true SBP."""
     x = np.arange(len(BANDS))
     above, below = 100 * split.miss_above.to_numpy(), 100 * split.miss_below.to_numpy()
-    ax.bar(x, above, width=0.6, color="#2a78d6", label="True value above")
-    ax.bar(x, -below, width=0.6, color="#86b6ef", label="True value below")
+    # a pattern as well as a shade, so that the two directions stay apart in greyscale
+    bar = {"width": 0.6, "edgecolor": SURFACE, "linewidth": 0}
+    ax.bar(x, above, color="#2a78d6", hatch="//", label="True value above", **bar)
+    ax.bar(x, -below, color="#86b6ef", hatch="..", label="True value below", **bar)
     for k in range(len(BANDS)):
         if above[k] >= 1:
             label(ax, half_up(above[k]), (k, above[k]), (0, 2))
@@ -103,7 +105,7 @@ def miss_panel(ax, split):
 
 
 def coverage_by_band(coverage, out_path, level=0.9, model="lightgbm"):
-    """Fig. 3: coverage and misses by band of true SBP, VitalDB test patients."""
+    """Fig. 4: coverage and misses by band of true SBP, VitalDB test patients."""
     rows = coverage[
         (coverage.target == "sbp")
         & (coverage.level == level)
@@ -112,10 +114,12 @@ def coverage_by_band(coverage, out_path, level=0.9, model="lightgbm"):
     ]
     split = rows[rows.method == "split"].set_index("stratum").reindex(BANDS)
     fig, axes = plt.subplots(
-        1, 2, figsize=(PAGE_WIDTH, 3.3), constrained_layout=True, gridspec_kw={"width_ratios": [1.4, 1]}
+        1, 2, figsize=(PAGE_WIDTH, 3.9), layout="constrained", gridspec_kw={"width_ratios": [1.4, 1]}
     )
     coverage_panel(axes[0], rows, split, level, out_path)
     miss_panel(axes[1], split)
+    # the legend of panel (a) goes below both panels, so that it does not cover the markers at 160 mmHg or higher
+    fig.legend(*axes[0].get_legend_handles_labels(), loc="outside lower center", ncol=3, frameon=False)
     save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 

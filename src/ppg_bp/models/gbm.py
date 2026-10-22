@@ -25,7 +25,7 @@ def output_labels(quantiles: Sequence[float]) -> list[str]:
     return ["mean"] + [quantile_name(q) for q in quantiles]
 
 
-def fit_lightgbm(
+def fit_lightgbm(  # noqa: PLR0913 (the data, settings and seed of one fit)
     params: dict,
     objective: str,
     alpha: float | None,
@@ -34,14 +34,24 @@ def fit_lightgbm(
     x_val: pd.DataFrame,
     y_val: pd.Series,
     seed: int,
+    *,
+    eval_metric: str | None = None,
 ) -> lgb.LGBMRegressor:
+    """Fit with early stopping on (x_val, y_val). eval_metric adds a metric that early stopping also watches."""
     params = dict(params)
     rounds = params.pop("early_stopping_rounds")
     params["objective"] = objective
     if alpha is not None:
         params["alpha"] = alpha
     model = lgb.LGBMRegressor(**params, random_state=seed)
-    model.fit(x_fit, y_fit, eval_X=x_val, eval_y=y_val, callbacks=[lgb.early_stopping(rounds, verbose=False)])
+    model.fit(
+        x_fit,
+        y_fit,
+        eval_X=x_val,
+        eval_y=y_val,
+        eval_metric=eval_metric,
+        callbacks=[lgb.early_stopping(rounds, verbose=False)],
+    )
     return model
 
 

@@ -10,7 +10,7 @@ phase3_error_by_band.csv
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from ppg_bp.config import PROJECT_ROOT, load_config
+from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
 from ppg_bp.evaluation.plots import (
     PAGE_WIDTH,
     TARGET_LABELS,
@@ -20,8 +20,8 @@ from ppg_bp.evaluation.plots import (
     save_figure,
 )
 
-# cut points of the strata (analysis plan, Section 4.3)
-BAND_EDGES = {"sbp": [90, 100, 120, 140, 160], "dbp": [50, 60, 70, 80, 90]}
+# cut points of the strata (analysis plan, Section 4.3; configs/conformal.yaml)
+BAND_EDGES = {target: load_settings("conformal")["strata"][target] for target in ("sbp", "dbp")}
 MODELS = {
     "lightgbm": ("feature_models", "lightgbm_ppg_only", "LightGBM on PPG features"),
     "cnn": ("waveform_model", "cnn_waveform", "1-D CNN on raw PPG"),
@@ -45,6 +45,8 @@ def main():
         mesh = None
         for ax, target in zip(axes, ("sbp", "dbp", "mbp"), strict=True):
             mesh, _ = bland_altman(ax, table[target], table[f"{target}_{suffix}"], TARGET_LABELS[target])
+        if mesh is None:
+            raise AssertionError("no panel was drawn")
         colorbar = fig.colorbar(mesh, ax=axes, shrink=0.85, pad=0.01, label="Segments per bin (log)")
         colorbar.outline.set_visible(False)
         if colorbar.solids is not None:

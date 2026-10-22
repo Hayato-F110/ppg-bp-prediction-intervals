@@ -17,6 +17,7 @@ import pandas as pd
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
 from ppg_bp.conformal.pipeline import intervals, read_predictions
 from ppg_bp.constants import MAIN_LEVEL
+from ppg_bp.evaluation.coverage import threshold_sides
 
 THRESHOLD = 140.0  # mmHg; lower limit of hypertension for office SBP
 
@@ -26,8 +27,9 @@ def patient_share(flag: pd.Series, subjects: pd.Series) -> float:
 
 
 def summarise(table: pd.DataFrame, lower: np.ndarray, upper: np.ndarray) -> list[dict]:
-    above = pd.Series(lower >= THRESHOLD, index=table.index)
-    below = pd.Series(upper < THRESHOLD, index=table.index)
+    wholly_above, wholly_below = threshold_sides(lower, upper, THRESHOLD)
+    above = pd.Series(wholly_above, index=table.index)
+    below = pd.Series(wholly_below, index=table.index)
     undecided = ~(above | below)
     covered = pd.Series((lower <= table["sbp"]) & (table["sbp"] <= upper), index=table.index)
     rows = []
@@ -60,13 +62,13 @@ def main():
     results = PROJECT_ROOT / config["paths"]["results"]
     cal = read_predictions(results, "calibration", cuts)
     rows = []
-    for dataset in ("test", "mimic3wdb"):
+    for name, dataset in (("VitalDB test", "test"), ("MIMIC-III", "mimic3wdb")):  # names as in review4/hypotension.csv
         table = read_predictions(results, dataset, cuts)
         for model in ("lightgbm", "cnn"):
             for method in ("split", "cqr"):
                 lower, upper, _ = intervals(cal, table, "sbp", model, method, MAIN_LEVEL, settings)
                 rows.extend(
-                    {"dataset": dataset, "model": model, "method": method, **row}
+                    {"dataset": name, "model": model, "method": method, **row}
                     for row in summarise(table, np.asarray(lower), np.asarray(upper))
                 )
     out = pd.DataFrame(rows)

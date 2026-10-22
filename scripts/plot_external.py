@@ -1,5 +1,5 @@
 """Figures of the cross-dataset analysis: coverage by band of true SBP in VitalDB and in the external dataset
-(Fig. 5), and recalibration with patients of the external dataset (Fig. 6).
+(Fig. 6), and recalibration with patients of the external dataset (Fig. 7).
 
 usage: uv run python -X utf8 scripts/plot_external.py [--dataset mimic3wdb]
 output: results/figures/phase5_coverage_source_vs_target, phase5_recalibration (.png, .svg, .pdf and .eps)
@@ -12,13 +12,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ppg_bp.config import PROJECT_ROOT, load_config
+from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
+from ppg_bp.conformal.pipeline import band_labels, band_names
 from ppg_bp.evaluation.plots import INK, MIN_TEXT, PAGE_WIDTH, SURFACE, apply_style, half_up, save_figure
 
-BANDS = ["<90", "90–<100", "100–<120", "120–<140", "140–<160", "≥160"]
-BAND_LABELS = ["<90", "90–99", "100–119", "120–139", "140–159", "≥160"]
+BANDS = band_names(load_settings("conformal")["strata"]["sbp"])
+BAND_LABELS = band_labels(load_settings("conformal")["strata"]["sbp"])
 METHODS = [("split", "Split conformal", "#2a78d6", "o"), ("cqr", "CQR", "#eb6834", "s")]
 NAMES = {"mimic3wdb": "MIMIC-III"}
+BAND_LOW, BAND_HIGH = 0.1, 0.9  # spread of the random draws of recalibration patients shown in Fig. 7
 RECALIBRATION_PANELS = (  # column, scale, y label, title
     ("coverage", 100.0, "Patient-level coverage (%)", "All segments"),
     ("coverage_sbp_ge160_patient", 100.0, "Patient-level coverage (%)", "True SBP ≥ 160 mmHg"),
@@ -37,7 +39,7 @@ def rows_for(coverage, method, variable, level=0.9, model="lightgbm"):
 
 
 def coverage_figure(source, target, name, out_path, level=0.9):
-    """Fig. 5: one panel per method; filled markers VitalDB, open markers the external dataset."""
+    """Fig. 6: one panel per method; filled markers VitalDB, open markers the external dataset."""
     fig, axes = plt.subplots(1, 2, figsize=(PAGE_WIDTH, 3.0), constrained_layout=True, sharey=True)
     for ax, (method, method_name, color, marker) in zip(axes, METHODS, strict=True):
         for table, dataset, filled, dx in ((source, "VitalDB test", True, -0.12), (target, name, False, 0.12)):
@@ -80,12 +82,16 @@ def coverage_figure(source, target, name, out_path, level=0.9):
 
 
 def recalibration_lines(ax, table, column, scale):
-    """Mean over the random draws (the spread between draws is in the supplementary data, sheet recalibration)."""
-    for method, method_name, color, marker in METHODS:
+    """Mean over the random draws, with bars from the 10th to the 90th percentile of the draws (all values are in
+    the supplementary data, recalibration.csv). Bars, not a shaded band: EPS has no transparency. The bars and the
+    means are shifted side by side on the log axis, so that each bar stays under its marker."""
+    for (method, method_name, color, marker), shift in zip(METHODS, (1 / 1.05, 1.05), strict=True):
         grouped = table[table.method == method].groupby("subjects")[column]
         x = np.array(sorted(grouped.groups))
+        low, high = (scale * grouped.quantile(q).to_numpy() for q in (BAND_LOW, BAND_HIGH))
+        ax.vlines(x * shift, low, high, color=color, linewidth=1.0)
         ax.plot(
-            x,
+            x * shift,
             scale * grouped.mean().to_numpy(),
             marker=marker,
             color=color,
@@ -135,7 +141,7 @@ def source_width_lines(ax, source):
 
 
 def recalibration_figure(table, source, name, out_path, level=0.9, model="lightgbm"):
-    """Fig. 6: coverage overall, coverage at true SBP >= 160 and width against the number of calibration patients."""
+    """Fig. 7: coverage overall, coverage at true SBP >= 160 and width against the number of calibration patients."""
     table = table[(table.model == model) & np.isfinite(table.width_median)]
     sizes = np.array(sorted(table.subjects.unique()))
     fig, axes = plt.subplots(1, 3, figsize=(PAGE_WIDTH, 2.9), constrained_layout=True)
@@ -149,7 +155,7 @@ def recalibration_figure(table, source, name, out_path, level=0.9, model="lightg
         ax.set_title(title, loc="left")
     for ax in axes[:2]:
         ax.axhline(100 * level, color=INK, linewidth=1.0, linestyle="--")
-        ax.set_ylim(40, 105)  # all values lie above 40%; a 0-100 axis left most of the panel empty
+        ax.set_ylim(30, 105)  # all bands lie above 30%; a 0-100 axis left most of the panel empty
     shift_path = Path(out_path).parents[1] / "review" / "recalibration_shift.csv"
     if shift_path.exists():
         offset_corrected_lines(axes, shift_path)

@@ -7,8 +7,8 @@ Nominal 90% SBP intervals, feature model (LightGBM), unless stated otherwise. Ou
 2. cnn_seeds.csv (C1): validation accuracy of the waveform model trained with five other seeds.
 3. pulse_pressure.csv (C2): share of segments with a pulse pressure above 100 mmHg (possible overshoot of the
    arterial line) by band of true SBP, and coverage when such segments are removed from calibration and test.
-   excluded_by_rules.csv: true SBP of the segments of calibration and test cases that the pulse-rate and
-   beat-variability rules excluded, against those kept.
+   excluded_by_rules.csv: true SBP of the segments of calibration and test cases that the pulse-rate,
+   beat-variability and pulse-pressure rules excluded, against those kept.
 4. label_shift.csv (C3): coverage on MIMIC-III re-weighted to the SBP distribution of VitalDB, with a 95% CI from
    a bootstrap over MIMIC-III patients; and the reverse, VitalDB test patients re-weighted to MIMIC-III.
 5. resplit.csv (C4): the calibration and test patients pooled and split again at random 200 times, to show how
@@ -32,31 +32,22 @@ import numpy as np
 import pandas as pd
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
-from ppg_bp.conformal.core import calibrate, split_interval, split_scores, subject_weights
-from ppg_bp.conformal.pipeline import band, intervals, read_predictions
-from ppg_bp.conformal.shift import domain_weights, weighted_conformal
-from ppg_bp.constants import MAIN_LEVEL
-from ppg_bp.evaluation.coverage import evaluate
+from ppg_bp.conformal.core import calibrate, split_interval, split_scores
+from ppg_bp.conformal.pipeline import band, coverage_rows, intervals, read_predictions, reference_reading
+from ppg_bp.conformal.shift import domain_training_sample, domain_weights, sbp_shares, sbp_weights, weighted_conformal
+from ppg_bp.constants import EXTRA_SEEDS, MAIN_LEVEL, RESPLITS
 from ppg_bp.evaluation.metrics import point_metrics
 from ppg_bp.features.extract import FEATURE_NAMES
 from ppg_bp.models.dataset import inner_validation_subjects, load_split, sample_per_subject
 
 LEVEL = MAIN_LEVEL
 TARGET, MODEL = "sbp", "lightgbm"
-RESPLITS = 200
 HIGH_PULSE_PRESSURE = 100.0  # mmHg
 RHYTHM = ["ibi_median", "ibi_sd", "ibi_rmssd", "ibi_cv"]
 APG_FEATURES = ["t_ab", "t_ac", "t_ad", "t_ae", "t_af", "t_be", "t_de", "crest_time", "width50_rel", "d_a", "apg_index"]
 MIN_SEGMENTS_FOR_CORRELATION, MIN_DISTINCT_VALUES = 50, 6  # per patient
+SEED_RUNS = ("waveform_model", *(f"waveform_model_seed{seed}" for seed in EXTRA_SEEDS))  # table S8
 BAND_ERROR, BAND_MEAN = 25.0, 55.0  # mmHg; outlying band of the DBP Bland-Altman plot
-
-
-def coverage_rows(y, lower, upper, subjects, edges, n_boot, seed, **labels) -> pd.DataFrame:
-    """Patient-level coverage overall and by band of true SBP."""
-    result = evaluate(y, lower, upper, subjects, {"true_sbp": band(y, edges)}, n_boot=n_boot, seed=seed, nominal=LEVEL)
-    for position, (name, value) in enumerate(labels.items()):
-        result.insert(position, name, value)
-    return result
 
 
 def median_interval(config, cal, test, settings, seed) -> pd.DataFrame:
@@ -87,7 +78,8 @@ def cnn_seeds(results) -> pd.DataFrame:
     """Validation accuracy of each run, recomputed from its saved validation estimates at full precision
     (validation_metrics.csv keeps only 3 decimals)."""
     rows = []
-    for folder in sorted(results.glob("waveform_model*")):
+    # the runs named explicitly, so that other folders (such as the single-thread check) do not enter the table
+    for folder in (results / name for name in SEED_RUNS):
         table = pd.read_parquet(folder / "validation_predictions.parquet")
         rows += [
             {"run": folder.name, "target": target, **point_metrics(table[target], table[f"{target}_cnn_waveform"])}
@@ -127,7 +119,8 @@ def pulse_pressure(cal, test, settings, seed) -> pd.DataFrame:
 
 def excluded_by_rules(processed, edges) -> pd.DataFrame:
     """Segments of the calibration and test cases (data/processed/vitaldb_sensitivity) kept or excluded by the
-    pulse-rate and beat-variability rules of the main analysis."""
+    pulse-rate, beat-variability and pulse-pressure rules of the main analysis (is_base of
+    build_sensitivity_segments.py; segments excluded by the earlier rules are not stored there)."""
     tables = []
     for path in sorted((processed / "vitaldb_sensitivity").glob("*.npz")):
         with np.load(path) as data:
@@ -138,28 +131,24 @@ def excluded_by_rules(processed, edges) -> pd.DataFrame:
     table["band"] = band(table["sbp"], edges)
     out = table.groupby(["is_base", "band"]).size().rename("segments").reset_index()
     out["share"] = out["segments"] / out.groupby("is_base")["segments"].transform("sum")
-    out["status"] = np.where(out["is_base"], "kept", "excluded by pulse-rate or beat-variability rules")
+    out["status"] = np.where(out["is_base"], "kept", "excluded by pulse-rate, beat-variability or pulse-pressure rules")
     return out.drop(columns="is_base")
 
 
-def reweighted_coverage(covered, values, subjects, reference, reference_subjects, edges) -> float:
-    """Coverage with each segment weighted so that the SBP distribution matches the reference (5-mmHg bins,
-    equal weight per patient on both sides)."""
-    src = np.histogram(reference, edges, weights=subject_weights(reference_subjects))[0]
-    tgt = np.histogram(values, edges, weights=subject_weights(subjects))[0]
-    ratio = np.divide(src / src.sum(), tgt / tgt.sum(), out=np.zeros_like(src), where=tgt > 0)
-    which = np.clip(np.digitize(values, edges) - 1, 0, len(ratio) - 1)
-    return float(np.average(covered, weights=subject_weights(subjects) * ratio[which]))
+def reweighted_coverage(covered, values, subjects, shares) -> float:
+    """Coverage with each segment weighted so that the SBP distribution matches shares (sbp_shares() of the
+    reference; 5-mmHg bins, equal weight per patient on both sides)."""
+    return float(np.average(covered, weights=sbp_weights(values, subjects, shares)))
 
 
 def label_shift(cal, test, ext, settings, seed) -> pd.DataFrame:
-    edges = np.arange(40, 261, 5)
     n_boot = settings["bootstrap"]
+    vitaldb_shares = sbp_shares(cal[TARGET], cal["subjectid"])  # the same in every bootstrap draw
     rows = []
     lower, upper, _ = intervals(cal, ext, TARGET, MODEL, "split", LEVEL, settings)
     covered = ((ext[TARGET] >= lower) & (ext[TARGET] <= upper)).to_numpy()
     y, subjects = ext[TARGET].to_numpy(), ext["subjectid"].to_numpy()
-    point = reweighted_coverage(covered, y, subjects, cal[TARGET], cal["subjectid"], edges)
+    point = reweighted_coverage(covered, y, subjects, vitaldb_shares)
     rng = np.random.default_rng(seed)
     groups = pd.Series(np.arange(len(y))).groupby(subjects).apply(np.asarray)
     boots = []
@@ -167,7 +156,7 @@ def label_shift(cal, test, ext, settings, seed) -> pd.DataFrame:
         chosen = rng.integers(0, len(groups), len(groups))
         index = np.concatenate([groups.iloc[k] for k in chosen])
         names = np.concatenate([np.full(len(groups.iloc[k]), j) for j, k in enumerate(chosen)])
-        boots.append(reweighted_coverage(covered[index], y[index], names, cal[TARGET], cal["subjectid"], edges))
+        boots.append(reweighted_coverage(covered[index], y[index], names, vitaldb_shares))
     rows.append(
         {
             "analysis": "MIMIC-III re-weighted to the SBP of VitalDB calibration patients",
@@ -185,9 +174,7 @@ def label_shift(cal, test, ext, settings, seed) -> pd.DataFrame:
                 covered_test,
                 test[TARGET].to_numpy(),
                 test["subjectid"].to_numpy(),
-                ext[TARGET],
-                ext["subjectid"],
-                edges,
+                sbp_shares(ext[TARGET], ext["subjectid"]),
             ),
             "ci_low": np.nan,
             "ci_high": np.nan,
@@ -223,61 +210,28 @@ def resplit(cal, test, settings, seed) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def with_offset(table, n_first) -> pd.DataFrame:
-    """Use each patient's first n_first segments as the reference reading: their mean error (reference - estimate)
-    is added to the patient's later estimates and quantiles, and the reference segments are dropped. Patients
-    with no later segment drop out."""
-    order = [c for c in ("subjectid", "caseid", "index") if c in table.columns]  # MIMIC-III has no caseid
-    table = table.sort_values(order).reset_index(drop=True)
-    is_reference = table.groupby("subjectid").cumcount() < n_first
-    error = table[TARGET] - table[f"{TARGET}_{MODEL}_mean"]
-    offset = error.where(is_reference).groupby(table["subjectid"]).transform("mean")
-    out = table[~is_reference].copy()
-    for column in [c for c in table.columns if c.startswith(f"{TARGET}_{MODEL}_")]:
-        out[column] = out[column] + offset[~is_reference]
-    return out
-
-
 def offset_calibration(cal, test, ext, settings, seed) -> pd.DataFrame:
     """One reference reading per patient: the first segment (10 s), or the mean over the first 6 (1 min) or
     30 segments (5 min)."""
-    edges = settings["strata"]["sbp"]
-    rows = []
-    for n_first in (1, 6, 30):
-        cal_o = with_offset(cal, n_first)
-        for name, table in (("VitalDB test", with_offset(test, n_first)), ("MIMIC-III", with_offset(ext, n_first))):
-            error = table[f"{TARGET}_{MODEL}_mean"] - table[TARGET]
-            for method in ("split", "cqr"):
-                lower, upper, _ = intervals(cal_o, table, TARGET, MODEL, method, LEVEL, settings)
-                result = coverage_rows(
-                    table[TARGET],
-                    lower,
-                    upper,
-                    table["subjectid"],
-                    edges,
-                    settings["bootstrap"],
-                    seed,
-                    reference_segments=n_first,
-                    dataset=name,
-                    method=method,
-                )
-                result.insert(3, "mae", float(error.abs().mean()))
-                result.insert(4, "sd_error", float(error.std()))
-                rows.append(result)
-    return pd.concat(rows, ignore_index=True)
+    return reference_reading(cal, {"VitalDB test": test, "MIMIC-III": ext}, settings, seed)
 
 
 def weighting_subsets(config, cal, ext, settings, seed) -> pd.DataFrame:
     cal_features = load_split(config, "calibration")
     ext_features = pd.read_parquet(PROJECT_ROOT / config["paths"]["processed"] / "mimic3wdb" / "features.parquet")
-    if cal_features["index"].tolist() != cal["index"].tolist():
+    # the same checks as weighting_analysis() of evaluate_external.py
+    if not (
+        cal_features["index"].tolist() == cal["index"].tolist()
+        and cal_features["caseid"].tolist() == cal["caseid"].tolist()
+    ):
         raise AssertionError("calibration features and estimates are not in the same order")
-    if ext_features["index"].tolist() != ext["index"].tolist():
+    if not (
+        ext_features["index"].tolist() == ext["index"].tolist()
+        and ext_features["subjectid"].tolist() == ext["subjectid"].tolist()
+    ):
         raise AssertionError("external features and estimates are not in the same order")
-    train = load_split(config, "train")
-    train = (
-        train.groupby("subjectid").sample(n=40, replace=True, random_state=seed).drop_duplicates(["caseid", "index"])
-    )
+    classifier = settings["domain_classifier"]  # the same training sample as weighting_analysis() of evaluate_external
+    train = domain_training_sample(load_split(config, "train"), classifier["segments_per_patient"], seed)
     all_columns = list(FEATURE_NAMES)
     variants = {
         "all features (main analysis)": (all_columns, (1e-3, 1e3)),
@@ -287,7 +241,9 @@ def weighting_subsets(config, cal, ext, settings, seed) -> pd.DataFrame:
     }
     rows = []
     for name, (columns, clip) in variants.items():
-        ratio_cal, ratio_ext, auc, _ = domain_weights(train, cal_features, ext_features, columns, seed, clip)
+        ratio_cal, ratio_ext, auc, _ = domain_weights(
+            train, cal_features, ext_features, columns, seed, classifier["params"], clip
+        )
         rows += [
             {"variant": name, "auc": auc, **row}
             for row in weighted_conformal(

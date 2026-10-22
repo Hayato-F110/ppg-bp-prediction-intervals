@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
-from ppg_bp.conformal.pipeline import band, intervals, sqi_tertile
+from ppg_bp.conformal.pipeline import band, band_names, intervals, sqi_tertile
 from ppg_bp.data.segmentation import MAX_BEAT_SBP_SD, MIN_PULSE_PRESSURE, PULSE_RATE_RANGE
 from ppg_bp.evaluation.coverage import evaluate
 from ppg_bp.features.extract import FEATURE_NAMES, segment_features
@@ -29,7 +29,7 @@ VARIANTS = {  # name: (pulse rate range per minute, maximum SD of beat-to-beat S
     "sd10": (PULSE_RATE_RANGE, 10.0),
     "sd20": (PULSE_RATE_RANGE, 20.0),
 }
-BANDS = ["<90", "90–<100", "100–<120", "120–<140", "140–<160", "≥160"]
+BANDS = band_names(load_settings("conformal")["strata"]["sbp"])
 META_COLUMNS = ("index", "pulse_rate", "sbp_sd", "sbp", "dbp", "mbp", "is_base", "is_new")
 
 

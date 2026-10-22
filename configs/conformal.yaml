@@ -24,3 +24,23 @@ strata:
 # numbers of calibration patients to try (analysis plan, Section 5)
 calibration_sizes: [10, 20, 45, 100, 200, 400, 627]
 calibration_repeats: 200
+
+# recalibration with a few target patients (analysis plan, Section 6.3)
+recalibration:
+  patients: [5, 10, 20, 50, 100]
+  repeats: 200
+
+# classifier that tells VitalDB from the target dataset (weighted conformal prediction, analysis plan, Section 6.2)
+domain_classifier:
+  segments_per_patient: 40   # training segments drawn per VitalDB training patient (with replacement, then unique)
+  params:
+    n_estimators: 200
+    learning_rate: 0.05
+    num_leaves: 31
+    min_child_samples: 100
+    subsample: 0.8
+    subsample_freq: 1
+    colsample_bytree: 0.8
+    class_weight: balanced
+    n_jobs: 4
+    verbose: -1

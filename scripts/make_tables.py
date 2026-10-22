@@ -13,13 +13,14 @@ import numpy as np
 import pandas as pd
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
-from ppg_bp.constants import FEW_PATIENTS, MAIN_LEVEL
+from ppg_bp.conformal.pipeline import band as label_bands
+from ppg_bp.conformal.pipeline import band_labels, band_names
+from ppg_bp.constants import COVERAGE_BIN_EDGES, FEW_PATIENTS, MAIN_LEVEL, SBP_BIN_EDGES
 from ppg_bp.evaluation.plots import half_up
 
-BANDS = ["<90", "90–<100", "100–<120", "120–<140", "140–<160", "≥160"]
-BAND_LABELS = dict(
-    zip(BANDS, ["<90", "90–99", "100–119", "120–139", "140–159", "≥160"], strict=True)
-)  # as in the figures of the main text
+STRATA = load_settings("conformal")["strata"]
+BANDS = band_names(STRATA["sbp"])
+BAND_LABELS = dict(zip(BANDS, band_labels(STRATA["sbp"]), strict=True))  # as in the figures of the main text
 
 MIN_KEPT_SHARE = 0.01  # withholding: values for fewer than 1% of segments kept are not shown
 METHOD_NAMES = {
@@ -32,8 +33,8 @@ METHOD_NAMES = {
     "split_segment": "Split, equal weight per segment",
 }
 MODEL_NAMES = {"lightgbm": "Feature", "cnn": "Waveform"}
-DBP_BANDS = ["<50", "50–<60", "60–<70", "70–<80", "80–<90", "≥90"]
-DBP_BAND_LABELS = dict(zip(DBP_BANDS, ["<50", "50–59", "60–69", "70–79", "80–89", "≥90"], strict=True))
+DBP_BANDS = band_names(STRATA["dbp"])
+DBP_BAND_LABELS = dict(zip(DBP_BANDS, band_labels(STRATA["dbp"]), strict=True))
 SUBGROUPS = {  # variable: (label, order of the groups)
     "within_subject": ("SBP relative to the patient's own median (mmHg)", ["<-20", "-20–<20", "≥20"]),
     "pulse_rate": ("Pulse rate (per minute)", ["<60", "60–<80", "80–<100", "≥100"]),
@@ -395,8 +396,8 @@ def table_s6(source, target) -> list:
     return [*out, "**(b) DBP intervals by true DBP**", "", markdown(pd.DataFrame(rows)), "", *dagger_note(rows)]
 
 
-def table_s7(source, results) -> list:
-    """S7: coverage in subgroups (the values of Fig. 4), and by PPG skewness (planned sensitivity analysis)."""
+def table_s7(source, results, processed) -> list:
+    """S7: coverage in subgroups (the values of Fig. 5), and by PPG skewness (planned sensitivity analysis)."""
     parts = []
     for variable, (label, order) in SUBGROUPS.items():
         table = strata_table(source, variable, order)
@@ -410,12 +411,19 @@ def table_s7(source, results) -> list:
     )
     table.insert(0, "Variable", "PPG skewness tertile (planned sensitivity analysis)")
     parts.append(table)
-    # patients counted in two BMI groups: the group sizes add up to more than the number of patients
-    split_bmi = source[(source.target == "sbp") & (source.level == MAIN_LEVEL) & (source.model == "lightgbm")]
-    split_bmi = split_bmi[split_bmi.method == "split"]
-    total = int(split_bmi[split_bmi.variable == "all"].subjects.iloc[0])
-    bmi_twice = int(split_bmi[split_bmi.variable == "bmi"].subjects.sum()) - total
-    bmi_twice = {1: "One", 2: "Two", 3: "Three"}.get(bmi_twice, str(bmi_twice))
+    # test patients whose operations fall in different BMI groups appear in each of them
+    cases = pd.read_parquet(results / "conformal" / "predictions_test.parquet", columns=["caseid", "subjectid"])
+    bmi = pd.read_csv(processed / "vitaldb" / "split.csv", usecols=["caseid", "bmi"])
+    cases = cases.drop_duplicates().merge(bmi, on="caseid", how="left")
+    cases["group"] = label_bands(cases["bmi"], STRATA["bmi"])
+    groups = cases.dropna(subset="group").drop_duplicates(["subjectid", "group"])
+    bmi_twice = groups.loc[groups["subjectid"].duplicated(), "subjectid"].nunique()
+    number = {1: "One", 2: "Two", 3: "Three"}.get(bmi_twice, str(bmi_twice))
+    twice_note = (
+        [f"{number} patients had two operations with body mass index in different groups and appear in both."]
+        if bmi_twice
+        else []
+    )
     return [
         "## Table S7. Patient-level coverage (%) of nominal 90% SBP intervals in subgroups, VitalDB test patients, "
         "feature model",
@@ -426,7 +434,7 @@ def table_s7(source, results) -> list:
         markdown(pd.concat(parts, ignore_index=True)),
         "",
         "† Fewer than 30 patients; reported for reference only.",
-        f"{bmi_twice} patients had two operations with body mass index in different groups and appear in both.",
+        *twice_note,
         "",
     ]
 
@@ -756,6 +764,103 @@ def table_s13(results) -> list:
     ]
 
 
+def table_s14(results) -> list:
+    """S14: MAE with 95% confidence intervals from a bootstrap over patients (error bars of Fig. 3(b))."""
+    acc = pd.read_csv(results / "review" / "test_accuracy.csv")
+    rows = [
+        {
+            "Target": r.target.upper(),
+            "Model": r.predictor,
+            "MAE (95% CI)": f"{half_up(r.mae, 1)} ({half_up(r.mae_lo, 1)}–{half_up(r.mae_hi, 1)})",
+        }
+        for r in acc.itertuples()
+    ]
+    return section(
+        "## Table S14. Mean absolute error with 95% confidence intervals, VitalDB test patients (mmHg)",
+        "Confidence intervals from 2,000 bootstrap resamples of patients.",
+        pd.DataFrame(rows),
+    )
+
+
+def table_s15(results) -> list:
+    """S15: intervals sorted against 140 mmHg (true SBP >= 140) and 65 mmHg (true MBP < 65) (fig. S10)."""
+    ct = pd.read_csv(results / "conformal" / "exploratory_clinical_threshold.csv").set_index(
+        ["dataset", "model", "method", "subset"]
+    )
+    hy = pd.read_csv(results / "review4" / "hypotension.csv").set_index(["dataset", "model", "method"])
+    rows = []
+    for name in ("VitalDB test", "MIMIC-III"):
+        for model in ("lightgbm", "cnn"):
+            for method in ("split", "cqr"):
+                r = ct.loc[(name, model, method, "true_sbp_>=140")]
+                h = hy.loc[(name, model, method)]
+                rows.append(
+                    {
+                        "Dataset": name,
+                        "Model": MODEL_NAMES[model],
+                        "Method": METHOD_NAMES[method],
+                        "SBP ≥ 140: wholly ≥ 140 (%)": pct(r.above),
+                        "SBP ≥ 140: contains 140 (%)": pct(r.undecided),
+                        "SBP ≥ 140: wholly < 140 (%)": pct(r.below),
+                        "MBP < 65: wholly < 65 (%)": pct(h.low_wholly_below),
+                        "MBP < 65: contains 65 (%)": pct(h.low_undecided),
+                        "MBP < 65: wholly ≥ 65 (%)": pct(h.low_wholly_above),
+                    }
+                )
+    return section(
+        "## Table S15. Nominal 90% intervals sorted against 140 mmHg (true SBP ≥ 140 mmHg) and 65 mmHg "
+        "(true MBP < 65 mmHg)",
+        "Shares of segments, averaged first within each patient. Exploratory.",
+        pd.DataFrame(rows),
+    )
+
+
+def table_s16(results) -> list:
+    """S16: distribution of the true SBP and of the coverage of each patient (fig. S9), as aggregate counts only."""
+    sbp = {
+        "VitalDB test": pd.read_parquet(results / "conformal" / "predictions_test.parquet", columns=["sbp"])["sbp"],
+        "MIMIC-III": pd.read_parquet(results / "external" / "mimic3wdb" / "predictions.parquet", columns=["sbp"])[
+            "sbp"
+        ],
+    }
+    edges = SBP_BIN_EDGES  # shared with plot_supplement.py
+    for name, values in sbp.items():  # every segment must fall in a bin, so that the shares sum to 100%
+        if values.min() < edges[0] or values.max() > edges[-1]:
+            raise ValueError(f"{name}: true SBP outside {edges[0]}–{edges[-1]} mmHg")
+    shares = {name: np.histogram(values, bins=edges)[0] / len(values) for name, values in sbp.items()}
+    rows = []
+    for k in range(len(edges) - 1):
+        lo, hi = edges[k], edges[k + 1]
+        row = {"True SBP (mmHg)": f"{lo}–<{hi}" if k < len(edges) - 2 else f"{lo}–{hi}"}
+        for name, share in shares.items():
+            row[f"{name} (% of segments)"] = pct(share[k], 2)
+        rows.append(row)
+    patients = pd.read_csv(results / "review4" / "patient_coverage.csv")
+    edges_c = COVERAGE_BIN_EDGES
+    rows_c = []
+    for k in range(len(edges_c) - 1):
+        lo, hi = edges_c[k], edges_c[k + 1]
+        row = {"Coverage of the patient (%)": f"{lo:.0f}–<{hi:.0f}" if k < len(edges_c) - 2 else f"{lo:.0f}–100"}
+        for (dataset, method), part in patients.groupby(["dataset", "method"], sort=False):
+            counts, _ = np.histogram(100 * part.coverage, bins=edges_c)
+            row[f"{dataset}, {METHOD_NAMES[method]} (% of patients)"] = pct(counts[k] / len(part), 1)
+        rows_c.append(row)
+    return [
+        "## Table S16. Distribution of the true SBP and of the coverage of each patient",
+        "",
+        "Nominal 90% SBP intervals, feature model. Aggregate shares only.",
+        "",
+        "**(a) True SBP, share of segments per 5 mmHg**",
+        "",
+        markdown(pd.DataFrame(rows)),
+        "",
+        "**(b) Coverage of each patient, share of patients per 5 percentage points**",
+        "",
+        markdown(pd.DataFrame(rows_c)),
+        "",
+    ]
+
+
 def main():
     config = load_config()
     results = PROJECT_ROOT / config["paths"]["results"]
@@ -773,7 +878,7 @@ def main():
         *table_s4(results),
         *table_s5(source, target, results),
         *table_s6(source, target),
-        *table_s7(source, results),
+        *table_s7(source, results, processed),
         *table_s8(results),
         *table_s10(results),
         *table_s11(results),
@@ -781,6 +886,9 @@ def main():
         *table_s12b(results),
         *table_s12c(results),
         *table_s13(results),
+        *table_s14(results),
+        *table_s15(results),
+        *table_s16(results),
     ]
     out_path = results / "tables" / "supplement_tables.md"
     out_path.parent.mkdir(parents=True, exist_ok=True)

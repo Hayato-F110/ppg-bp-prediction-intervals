@@ -113,3 +113,21 @@ def test_bootstrap_interval_contains_the_truth_for_exchangeable_data():
     result = summarise(per_subject(y_test, lower, upper, subj_test), n_boot=2000)
     assert result["coverage_lo"] < 0.90 < result["coverage_hi"]
     assert result["coverage_hi"] - result["coverage_lo"] < 0.05
+
+
+def test_patients_at_exactly_ten_points_below_nominal_are_not_counted_below():
+    # 7 of 10 segments covered: 70%, exactly 10 points below a nominal 80% (0.8 - 0.1 is 0.7000000000000001)
+    y = np.arange(10.0)
+    table = per_subject(y, lower=np.full(10, -1.0), upper=np.full(10, 6.5), subjects=np.zeros(10))
+    result = summarise(table, n_boot=10, nominal=0.8)
+    assert result["coverage"] == pytest.approx(0.7)
+    assert result["subjects_below_minus10"] == 0.0
+
+
+def test_segments_without_group_use_the_overall_correction():
+    y, pred, subjects, _ = make_data(100, 7)
+    scores = split_scores(y, pred)
+    # 40 subjects without a group (None), as band() gives for a missing value
+    groups = np.array(["a" if s < 60 else None for s in subjects], dtype=object)
+    corrections = calibrate(scores, subjects, 0.1, groups=groups)
+    assert corrections[None] == calibrate(scores, subjects, 0.1)[None]

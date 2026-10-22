@@ -3,7 +3,8 @@
 No original result file is changed. Output: results/review/.
 
 1. test_accuracy.csv: accuracy of the point estimate in the 627 test patients. The training-median reference is the
-   median of the training segments, as in train_feature_models.py.
+   median of the training segments, as in train_feature_models.py. mae_lo and mae_hi give the 95% CI of the MAE
+   from a bootstrap over patients (added 2026-10-22 for the error bars of Fig. 3(b)).
 2. shrinkage.csv: coverage by true SBP band against a simple model. The estimate shrinks linearly
    (estimate = a + b x true + error) with normal errors of constant SD; a, b and SD come from the calibration
    patients (equal weight per patient). With the split conformal margin q, each segment is covered with probability
@@ -24,24 +25,32 @@ from scipy.stats import norm
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
 from ppg_bp.conformal.core import (
     calibrate,
-    cqr_interval,
-    cqr_scores,
-    split_interval,
     split_scores,
     subject_weights,
 )
-from ppg_bp.conformal.pipeline import band, intervals, quantile_column, read_predictions
+from ppg_bp.conformal.pipeline import band, intervals, read_predictions
+from ppg_bp.conformal.shift import recalibration
 from ppg_bp.constants import SBP_HIGH
 from ppg_bp.evaluation.coverage import paired_difference
 from ppg_bp.evaluation.metrics import point_metrics
 from ppg_bp.models.dataset import inner_validation_subjects, load_split, sample_per_subject
 
-RECALIBRATION_SIZES = (5, 10, 20, 50, 100)  # as in evaluate_external.py
-REPEATS = 200
+
+def mae_ci(true, pred, subjects, n_boot, seed):
+    """95% CI of the MAE over all segments, from a bootstrap over patients (each draw counts a patient's segments
+    as many times as the patient is drawn)."""
+    table = pd.DataFrame({"error": np.abs(np.asarray(pred) - np.asarray(true)), "subject": np.asarray(subjects)})
+    per = table.groupby("subject")["error"].agg(["sum", "count"])
+    total, count = per["sum"].to_numpy(), per["count"].to_numpy()
+    rng = np.random.default_rng(seed)
+    draws = rng.multinomial(len(per), np.full(len(per), 1 / len(per)), size=n_boot)
+    boots = (draws @ total) / (draws @ count)
+    return np.percentile(boots, 2.5), np.percentile(boots, 97.5)
 
 
 def test_accuracy(config, test):
     settings = load_settings("feature_models")
+    n_boot = load_settings("conformal")["bootstrap"]
     seed = config["seed"]
     train = load_split(config, "train")
     validation = inner_validation_subjects(train["subjectid"], settings["validation_fraction"], seed)
@@ -54,12 +63,15 @@ def test_accuracy(config, test):
             "Waveform model": test[f"{target}_cnn_mean"],
         }
         for name, pred in predictions.items():
+            lo, hi = mae_ci(test[target], pred, test["subjectid"], n_boot, seed)
             rows.append(
                 {
                     "target": target,
                     "predictor": name,
                     "patients": test["subjectid"].nunique(),
                     **point_metrics(test[target], pred),
+                    "mae_lo": lo,
+                    "mae_hi": hi,
                 }
             )
     return pd.DataFrame(rows)
@@ -107,18 +119,23 @@ def shrinkage(cal, test, settings, level=0.9):
     # coverage of group-wise calibration by predicted SBP band (mondrian_pred), by predicted band (nominal by design)
     lower, upper, _ = intervals(cal, test, target, model, "mondrian_pred", level, settings)
     covered_group = ((y >= lower) & (y <= upper)).astype(float)
+    # each summary once (each call runs its own bootstrap with the same seed, so repeated calls gave the same values)
+    observed_true = patient_mean(covered, test["subjectid"], true_band)
+    expected_true = patient_mean(expected, test["subjectid"], true_band)
+    observed_predicted = patient_mean(covered, test["subjectid"], predicted_band)
+    groupwise_predicted = patient_mean(covered_group, test["subjectid"], predicted_band)
     out = pd.concat(
         {
-            "observed_by_true": patient_mean(covered, test["subjectid"], true_band)["mean"],
-            "expected_by_true": patient_mean(expected, test["subjectid"], true_band)["mean"],
-            "patients_true": patient_mean(covered, test["subjectid"], true_band)["count"],
-            "observed_by_predicted": patient_mean(covered, test["subjectid"], predicted_band)["mean"],
-            "patients_predicted": patient_mean(covered, test["subjectid"], predicted_band)["count"],
-            "groupwise_by_predicted": patient_mean(covered_group, test["subjectid"], predicted_band)["mean"],
-            "groupwise_by_predicted_lo": patient_mean(covered_group, test["subjectid"], predicted_band)["lo"],
-            "groupwise_by_predicted_hi": patient_mean(covered_group, test["subjectid"], predicted_band)["hi"],
-            "observed_by_predicted_lo": patient_mean(covered, test["subjectid"], predicted_band)["lo"],
-            "observed_by_predicted_hi": patient_mean(covered, test["subjectid"], predicted_band)["hi"],
+            "observed_by_true": observed_true["mean"],
+            "expected_by_true": expected_true["mean"],
+            "patients_true": observed_true["count"],
+            "observed_by_predicted": observed_predicted["mean"],
+            "patients_predicted": observed_predicted["count"],
+            "groupwise_by_predicted": groupwise_predicted["mean"],
+            "groupwise_by_predicted_lo": groupwise_predicted["lo"],
+            "groupwise_by_predicted_hi": groupwise_predicted["hi"],
+            "observed_by_predicted_lo": observed_predicted["lo"],
+            "observed_by_predicted_hi": observed_predicted["hi"],
         },
         axis=1,
     )
@@ -132,52 +149,20 @@ def shrinkage(cal, test, settings, level=0.9):
 
 
 def recalibration_shift(ext, settings, seed):
-    """With and without the offset correction, in the same random order as evaluate_external (LightGBM only)."""
-    target, level = settings["primary_target"], settings["primary_level"]
-    q_lo, q_hi = settings["levels"][level]
-    rng = np.random.default_rng(seed)
-    subjects = ext["subjectid"].unique()
-    code = pd.Series(np.arange(len(subjects)), index=subjects)[ext["subjectid"]].to_numpy()
-    high = (ext[target] >= SBP_HIGH).to_numpy()
-    model = "lightgbm"  # the first model in the original function, so the random draws match
-    mean = ext[f"{target}_{model}_mean"].to_numpy()
-    lo, hi = ext[quantile_column(target, model, q_lo)].to_numpy(), ext[quantile_column(target, model, q_hi)].to_numpy()
-    lo, hi = np.minimum(lo, hi), np.maximum(lo, hi)
-    y = ext[target].to_numpy()
-    rows = []
-    for size in RECALIBRATION_SIZES:
-        for repeat in range(REPEATS):
-            chosen = np.zeros(len(subjects), dtype=bool)
-            chosen[rng.choice(len(subjects), size=size, replace=False)] = True
-            cal, out = chosen[code], ~chosen[code]
-            residual = y[cal] - mean[cal]
-            offset = float(np.average(residual, weights=subject_weights(code[cal])))
-            for shifted in (False, True):
-                d = offset if shifted else 0.0
-                for method in ("split", "cqr"):
-                    if method == "split":
-                        q = calibrate(split_scores(y[cal], mean[cal] + d), code[cal], 1 - level)
-                        lower, upper = split_interval(mean[out] + d, q)
-                    else:
-                        q = calibrate(cqr_scores(y[cal], lo[cal] + d, hi[cal] + d), code[cal], 1 - level)
-                        lower, upper = cqr_interval(lo[out] + d, hi[out] + d, q)
-                    covered = (y[out] >= lower) & (y[out] <= upper)
-                    is_high = high[out]
-                    per_high = pd.Series(covered[is_high]).groupby(code[out][is_high]).mean()
-                    rows.append(
-                        {
-                            "method": method,
-                            "shifted": shifted,
-                            "subjects": size,
-                            "repeat": repeat,
-                            "offset": offset,
-                            "coverage": pd.Series(covered).groupby(code[out]).mean().mean(),
-                            "width_median": float(np.median(upper - lower)),
-                            "coverage_sbp_ge160": covered[high[out]].mean() if high[out].any() else np.nan,
-                            "coverage_sbp_ge160_patient": per_high.mean() if len(per_high) else np.nan,
-                        }
-                    )
-    return pd.DataFrame(rows)
+    """With and without the offset correction, through the recalibration of evaluate_external.py (LightGBM only, the
+    first model there, so the random draws are the same)."""
+    recalibration_settings = settings["recalibration"]
+    table = recalibration(
+        ext,
+        settings,
+        seed,
+        recalibration_settings["repeats"],
+        tuple(recalibration_settings["patients"]),
+        ("lightgbm",),
+        offset_correction=True,
+    )
+    columns = ["method", "shifted", "subjects", "repeat", "offset", "coverage", "width_median"]
+    return table[[*columns, "coverage_sbp_ge160", "coverage_sbp_ge160_patient"]]
 
 
 def differences(cal, test, ext, settings, seed, level=0.9):
@@ -210,18 +195,7 @@ def differences(cal, test, ext, settings, seed, level=0.9):
             **paired_difference(mim["cqr"], mim["split"], ext["subjectid"].to_numpy(), settings["bootstrap"], seed),
         }
     )
-    rows.append(
-        {
-            "dataset": "MIMIC-III − VitalDB test",
-            "stratum": "all",
-            "comparison": "split (unpaired; see coverage.csv)",
-            "patients": np.nan,
-            "difference": np.nan,
-            "ci_low": np.nan,
-            "ci_high": np.nan,
-        }
-    )
-    return pd.DataFrame(rows[:-1])
+    return pd.DataFrame(rows)
 
 
 def main():

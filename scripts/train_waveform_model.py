@@ -107,7 +107,7 @@ def train(model, fit_data, stop_data, scale, settings, model_seed):
             since_best += 1
             if since_best >= settings["patience"]:
                 break
-    if not (best_state is not None):
+    if best_state is None:
         raise AssertionError("the stopping MAE never improved")
     return best_state, history
 
@@ -145,7 +145,7 @@ def main():
     parser.add_argument(
         "--deterministic",
         action="store_true",
-        help="train on one CPU thread so that runs are exactly reproducible (about four times slower)",
+        help="train on one CPU thread so that runs are exactly reproducible (about twice as slow)",
     )
     parser.add_argument(
         "--output",

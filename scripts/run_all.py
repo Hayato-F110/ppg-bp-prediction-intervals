@@ -26,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ppg_bp.config import PROJECT_ROOT, load_config
+from ppg_bp.constants import EXTRA_SEEDS
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,7 @@ STEPS = (
             ("--model-seed", str(seed)),
             label=f"train_waveform_model_seed{seed}",
         )
-        for seed in range(1, 6)
+        for seed in EXTRA_SEEDS
     ),
     Step("plot_validation", "models", "Bland-Altman plots and errors by band"),
     Step("predict_calibration_test", "models", "Estimates for the calibration and test patients"),
@@ -76,7 +77,7 @@ STEPS = (
     Step("predict_external", "external", "Features and estimates for MIMIC-III (models are not retrained)"),
     Step("evaluate_external", "external", "Across datasets: as is, weighted, recalibrated, shift"),
     Step("evaluate_selective", "intervals", "Withholding estimates with wide intervals"),
-    Step("explain_models", "intervals", "SHAP for the estimate and the interval width (fig. S8)"),
+    Step("explain_models", "intervals", "SHAP for the estimate and the interval width (fig. S3)"),
     Step("build_sensitivity_segments", "sensitivity", "Segments under other exclusion rules", download=True),
     Step("evaluate_sensitivity", "sensitivity", "Coverage under other exclusion rules"),
     Step("explore_review_analyses", "exploratory", "Test accuracy, shrinkage model, offset correction, differences"),
@@ -85,15 +86,17 @@ STEPS = (
     Step("explore_review3_analyses", "exploratory", "Resplits, one reference reading, overshoot, seeds, weighting"),
     Step("explore_clinical_threshold", "exploratory", "Intervals against the 140 mmHg threshold"),
     Step("explore_required_width", "exploratory", "Interval width needed for nominal coverage by band of true SBP"),
+    Step("explore_review4_analyses", "exploratory", "Sets by true SBP, carrying the reference forward, hypotension"),
     Step("make_characteristics", "outputs", "Table 1 (characteristics of the datasets)"),
     Step("make_table2", "outputs", "Table 2 (coverage by method)"),
     Step("make_tables", "outputs", "Supplementary tables"),
-    Step("make_supplementary_data", "outputs", "Supplementary data (Excel workbook and CSV files)"),
+    Step("make_supplementary_data", "outputs", "Supplementary data (CSV files)"),
     Step("plot_study_design", "outputs", "Fig. 1"),
-    Step("plot_main_figures", "outputs", "Figs. 2, 4 and 7, and figs. S1 and S2"),
-    Step("plot_conformal", "outputs", "Fig. 3 and fig. S6"),
-    Step("plot_external", "outputs", "Figs. 5 and 6"),
-    Step("plot_supplement", "outputs", "Figs. S3, S4, S5 and S7"),
+    Step("plot_model_pipeline", "outputs", "Fig. 2"),
+    Step("plot_main_figures", "outputs", "Figs. 3, 5 and 8, and figs. S1 and S7"),
+    Step("plot_conformal", "outputs", "Fig. 4 and fig. S2"),
+    Step("plot_external", "outputs", "Figs. 6 and 7"),
+    Step("plot_supplement", "outputs", "Figs. S4, S5, S6, S8, S9 and S10"),
     Step("compare_reference", "outputs", "Compare tables 1 and 2 and the supplementary data with reference_results/"),
     Step("tune_lightgbm", "optional", "Check that the LightGBM settings are not far from tuned ones", optional=True),
     Step("check_fiducials_vitaldb", "optional", "Fiducial points on a VitalDB sample", optional=True),

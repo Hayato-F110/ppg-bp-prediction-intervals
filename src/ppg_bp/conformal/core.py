@@ -51,7 +51,8 @@ def calibrate(
     """Compute the corrections. Returns {group name: correction}; the key None holds the overall correction.
 
     If groups is given, each group is calibrated separately (Mondrian). Groups with fewer than min_subjects subjects
-    use the overall correction. equal_subjects=False weights all segments equally (sensitivity analysis).
+    use the overall correction, as do segments without a group (None, e.g. a missing estimate in band()).
+    equal_subjects=False weights all segments equally (sensitivity analysis).
     """
     scores, subjects = np.asarray(scores, dtype=np.float64), np.asarray(subjects)
 
@@ -64,6 +65,8 @@ def calibrate(
     if groups is not None:
         groups = np.asarray(groups)
         for group in pd.unique(groups):
+            if group is None:  # None is the key of the overall correction
+                continue
             mask = groups == group
             out[group] = one(mask) if len(pd.unique(subjects[mask])) >= min_subjects else out[None]
     return out

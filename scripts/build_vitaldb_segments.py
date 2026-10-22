@@ -1,6 +1,6 @@
 """Download all VitalDB cases and save 10-s segments, reference pressures and exclusion reasons.
 
-If stopped, a rerun skips the cases already done.
+If stopped, a rerun skips the cases already done and retries the cases that failed (for example on a network error).
 
 usage: uv run python scripts/build_vitaldb_segments.py [--limit N]
 output (not in the repository):
@@ -37,11 +37,18 @@ def main():
     case_ids = cases["caseid"].tolist()[: args.limit]
 
     summary_path = out_dir / "case_summary.csv"
+    fields = ["caseid", "n_segments", *REASONS, "error"]
     done = set()
     if summary_path.exists():
         with summary_path.open(encoding="utf-8") as f:
-            done = {int(row["caseid"]) for row in csv.DictReader(f)}
-    fields = ["caseid", "n_segments", *REASONS, "error"]
+            rows = list(csv.DictReader(f))
+        kept = [row for row in rows if not row["error"]]
+        if len(kept) < len(rows):  # drop the failed cases, so that each case has one row after the retry
+            with summary_path.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fields)
+                writer.writeheader()
+                writer.writerows(kept)
+        done = {int(row["caseid"]) for row in kept}
     write_header = not summary_path.exists()
 
     start = time.perf_counter()

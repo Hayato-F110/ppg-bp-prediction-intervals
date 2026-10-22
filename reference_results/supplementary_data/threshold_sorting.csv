@@ -1,0 +1,9 @@
+Dataset,Model,Method,SBP ≥ 140: wholly ≥ 140 (%),SBP ≥ 140: contains 140 (%),SBP ≥ 140: wholly < 140 (%),MBP < 65: wholly < 65 (%),MBP < 65: contains 65 (%),MBP < 65: wholly ≥ 65 (%)
+VitalDB test,Feature,Split conformal,1.0,93.5,5.5,0.0,91.4,8.6
+VitalDB test,Feature,CQR,0.0,95.4,4.6,0.0,93.8,6.2
+VitalDB test,Waveform,Split conformal,1.8,92.0,6.3,0.0,91.0,9.0
+VitalDB test,Waveform,CQR,0.0,94.0,6.0,0.0,93.1,6.9
+MIMIC-III,Feature,Split conformal,0.0,75.0,25.0,0.0,60.1,39.9
+MIMIC-III,Feature,CQR,0.0,98.1,1.9,0.0,88.6,11.4
+MIMIC-III,Waveform,Split conformal,0.0,77.8,22.2,0.0,56.4,43.6
+MIMIC-III,Waveform,CQR,0.0,83.5,16.5,0.0,76.1,23.9

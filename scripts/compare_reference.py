@@ -1,5 +1,5 @@
 """Compare a reproduction with the results of the paper (reference_results/): tables 1 and 2, all supplementary tables
-and the supplementary data.
+the supplementary data and the exploratory analyses of results/review4/.
 
 CSV files are compared cell by cell, as text; the supplementary tables (Markdown) line by line. The values are those
 printed in the paper, already rounded, so any difference shows. The waveform model is not exactly reproducible on
@@ -14,7 +14,8 @@ import pandas as pd
 from ppg_bp.config import PROJECT_ROOT, load_config
 
 REFERENCE = PROJECT_ROOT / "reference_results"
-TABLES = PROJECT_ROOT / load_config()["paths"]["results"] / "tables"
+RESULTS = PROJECT_ROOT / load_config()["paths"]["results"]
+TABLES = RESULTS / "tables"
 # reference file -> file written by the pipeline
 PAIRS = {
     "table1_characteristics.csv": TABLES / "characteristics.csv",
@@ -23,6 +24,11 @@ PAIRS = {
     **{
         f"supplementary_data/{path.name}": TABLES / "supplementary_data" / path.name
         for path in sorted((REFERENCE / "supplementary_data").glob("*.csv"))
+    },
+    # exploratory analyses after the fourth (mock) review, cited in the text and the supplement
+    **{
+        f"review4/{path.name}": RESULTS / "review4" / path.name
+        for path in sorted((REFERENCE / "review4").glob("*.csv"))
     },
 }
 SHOWN = 5  # differing lines printed per Markdown file
@@ -59,6 +65,8 @@ def main() -> None:
         unit = "lines" if name.endswith(".md") else "cells"
         print(f"{name}: {'identical' if count == 0 else f'{count} {unit} differ'}")
     print(f"\n{len(PAIRS)} files compared, {differing} with differences")
+    if differing:
+        raise SystemExit(1)  # so that run_all.py and other callers see a failed reproduction
 
 
 if __name__ == "__main__":

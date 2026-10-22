@@ -3,7 +3,14 @@
 import numpy as np
 import pytest
 
-from ppg_bp.data.segmentation import REASONS, has_flatline, label_segment, segment_case
+from ppg_bp.data.segmentation import (
+    REASONS,
+    has_flatline,
+    label_segment,
+    later_rules,
+    segment_case,
+    segment_quantities,
+)
 
 FS = 500
 SEG_SEC = 10
@@ -100,3 +107,17 @@ def test_no_valid_segment_returns_empty():
     assert ppg_out.shape == (0, SEG_SEC * 125)
     assert rows == []
     assert counts["abp_range"] == 2
+
+
+def test_wider_limits_of_the_later_rules_admit_a_slow_pulse():
+    ppg, abp = synthetic(rate_bpm=36)  # excluded by the main rules (pulse rate below 40 per minute)
+    reason, quantities = segment_quantities(ppg, abp, FS)
+    assert reason == "" and quantities is not None
+    assert later_rules(quantities) == "pulse_rate"
+    assert later_rules(quantities, (20.0, 200.0), 20.0) == "ok"  # the widest rules of the sensitivity analysis
+
+
+def test_first_rules_return_no_quantities():
+    ppg, abp = synthetic()
+    abp[100] = np.nan
+    assert segment_quantities(ppg, abp, FS) == ("nan", None)

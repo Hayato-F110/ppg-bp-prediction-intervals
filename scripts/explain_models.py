@@ -2,7 +2,8 @@
 
 The models are the LightGBM SBP models of the main analysis (results/conformal/models/). The width is that of the
 uncorrected nominal 90% CQR interval: the 95% quantile model minus the 5% quantile model. The segments are drawn at
-random from the validation patients within the training patients, who were not used to fit the models.
+random from the validation patients within the training patients. Their segments were not used to fit the trees;
+they were used only for early stopping (the number of trees).
 The detection of the e wave depends on the pulse rate, so the importance is also given within tertiles of the pulse
 interval.
 
@@ -18,7 +19,7 @@ import shap
 from scipy.stats import spearmanr
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
-from ppg_bp.evaluation.plots import MIN_TEXT, PAGE_WIDTH, apply_style, half_up, save_figure
+from ppg_bp.evaluation.plots import MIN_TEXT, PAGE_WIDTH, SURFACE, apply_style, half_up, save_figure
 from ppg_bp.features.extract import FEATURE_NAMES
 from ppg_bp.models.dataset import inner_validation_subjects, load_split
 
@@ -135,7 +136,8 @@ def plot_importance(importance, out_path) -> None:
         (axes[1], "width", "Width of the 90% interval"),
     ):
         top = importance[column].sort_values(ascending=False).head(12)[::-1]
-        ax.barh(range(len(top)), top.to_numpy(), color="#2a78d6", height=0.6)
+        bars = {"height": 0.6, "hatch": "//", "edgecolor": SURFACE, "linewidth": 0}  # a pattern for greyscale print
+        ax.barh(range(len(top)), top.to_numpy(), color="#2a78d6", **bars)
         ax.set_yticks(range(len(top)), [READABLE.get(name, name) for name in top.index])
         for k, value in enumerate(top.to_numpy()):
             ax.annotate(

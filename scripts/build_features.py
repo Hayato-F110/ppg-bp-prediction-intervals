@@ -8,8 +8,8 @@ output: data/processed/vitaldb/features.parquet (caseid, index, features; rows m
 """
 
 import argparse
-import sys
 import time
+from functools import partial
 from multiprocessing import Pool
 
 import numpy as np
@@ -22,12 +22,12 @@ CONFIG = load_config()
 FS = CONFIG["segment"]["fs_hz"]
 ROOT = PROJECT_ROOT / CONFIG["paths"]["processed"] / "vitaldb"
 OUT_DIR = ROOT / "features"
-OVERWRITE = "--overwrite" in sys.argv  # recompute cases already done (after a change of definitions)
 
 
-def process_case(case_id: int) -> int:
+def process_case(case_id: int, overwrite: bool) -> int:
+    """overwrite: recompute a case already done (after a change of definitions)."""
     out_path = OUT_DIR / f"{case_id}.parquet"
-    if out_path.exists() and not OVERWRITE:
+    if out_path.exists() and not overwrite:
         return 0
     with np.load(ROOT / "segments" / f"{case_id}.npz") as data:
         ppg, index = data["ppg"], data["index"]
@@ -52,7 +52,7 @@ def main():
     case_ids = sorted(int(p.stem) for p in (ROOT / "segments").glob("*.npz"))[: args.limit]
     start, done = time.time(), 0
     with Pool(args.workers) as pool:
-        for i, n in enumerate(pool.imap_unordered(process_case, case_ids), 1):
+        for i, n in enumerate(pool.imap_unordered(partial(process_case, overwrite=args.overwrite), case_ids), 1):
             done += n
             if i % 100 == 0 or i == len(case_ids):
                 print(f"{i}/{len(case_ids)} cases, {done} segments, {(time.time() - start) / 60:.1f} min", flush=True)

@@ -47,7 +47,7 @@ def load_waveforms(config: dict, table: pd.DataFrame) -> np.ndarray:
             ppg, index = data["ppg"], data["index"]
         wanted = table["index"].to_numpy()[rows]
         where = np.searchsorted(index, wanted)
-        if not np.array_equal(index[where], wanted):
+        if (where >= len(index)).any() or not np.array_equal(index[where], wanted):
             raise AssertionError("the segments read are not those requested")
         out[positions[rows]] = ppg[where]
     return out

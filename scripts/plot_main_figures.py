@@ -1,10 +1,11 @@
-"""Figures of the main text that show comparisons (Figs. 2, 4 and 7) and two supplementary figures.
+"""Figures of the main text that show comparisons (Figs. 3, 5 and 8) and two supplementary figures.
 
-- main_accuracy (Fig. 2): accuracy of the point estimate in the 627 test patients. PPG-only models are only a little
-  better than returning the training median (left). Estimates are pulled towards the centre of the training data, so
-  low pressures are overestimated and high pressures underestimated (right).
-- main_subgroups (Fig. 4): coverage of split conformal intervals (nominal 90%) in subgroups other than true pressure.
-- main_withholding (Fig. 7): withholding estimates with wide intervals. Keeping fewer estimates does not bring the SD
+- main_accuracy (Fig. 3): accuracy of the point estimate in the 627 test patients. The estimate against the true SBP
+  (a) shows the shrinkage directly. PPG-only models are only a little better than returning the training median (b).
+  Estimates are pulled towards the centre of the training data, so low pressures are overestimated and high
+  pressures underestimated (c).
+- main_subgroups (Fig. 5): coverage of split conformal intervals (nominal 90%) in subgroups other than true pressure.
+- main_withholding (Fig. 8): withholding estimates with wide intervals. Keeping fewer estimates does not bring the SD
   of the error down to 8 mmHg (left). Thresholds set on VitalDB withhold most segments of MIMIC-III (right).
 - supp_bland_altman_test, supp_slope_curve: supplementary figures.
 
@@ -20,11 +21,14 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib import patheffects
 
-from ppg_bp.config import PROJECT_ROOT, load_config
+from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
+from ppg_bp.conformal.pipeline import band_labels
 from ppg_bp.constants import FEW_PATIENTS  # groups with fewer patients are marked † (reference only)
 from ppg_bp.evaluation.plots import (
     AXIS,
+    DENSITY,
     INK,
     INK_SECONDARY,
     MIN_TEXT,
@@ -42,10 +46,10 @@ from ppg_bp.evaluation.plots import (
 
 BLUE, ORANGE, GREY = "#2a78d6", "#eb6834", "#a9a8a0"
 PREDICTORS = [("Training median", GREY), ("Feature model", BLUE), ("Waveform model", ORANGE)]
-SBP_EDGES = (90, 100, 120, 140, 160)
-SBP_BAND_LABELS = ["<90", "90–99", "100–119", "120–139", "140–159", "≥160"]
+BAR_HATCHES = ("..", "//", "\\\\")  # a pattern per bar series, so that the bars stay apart in greyscale
+SBP_EDGES = load_settings("conformal")["strata"]["sbp"]
+SBP_BAND_LABELS = band_labels(SBP_EDGES)
 MODELS = (("lightgbm", "Feature model", BLUE), ("cnn", "Waveform model", ORANGE))
-SHORTFALL = 5  # subgroups more than this many points below nominal are highlighted
 CUFF_SD = 8.0  # SD limit of the error for cuff devices (mmHg)
 
 
@@ -65,12 +69,15 @@ def mae_panel(ax, metrics: pd.DataFrame):
     rows = {name: part.set_index("target") for name, part in metrics.groupby("predictor")}
     targets = ["sbp", "dbp"]
     width = 0.26
-    for k, (name, color) in enumerate(PREDICTORS):
+    for k, ((name, color), hatch) in enumerate(zip(PREDICTORS, BAR_HATCHES, strict=True)):
         values = [rows[name].loc[t, "mae"] for t in targets]
+        lo, hi = ([rows[name].loc[t, c] for t in targets] for c in ("mae_lo", "mae_hi"))
         x = np.arange(len(targets)) + (k - 1) * width
-        ax.bar(x, values, width=width * 0.92, color=color, label=name)
-        for xi, v in zip(x, values, strict=True):
-            label(ax, half_up(v, 1), (xi, v), (0, 2))
+        ax.bar(x, values, width=width * 0.92, color=color, hatch=hatch, edgecolor=SURFACE, linewidth=0, label=name)
+        # 95% CI from a bootstrap over patients
+        ax.vlines(x, lo, hi, color=INK, linewidth=1.0)
+        for xi, v, top in zip(x, values, hi, strict=True):
+            label(ax, half_up(v, 1), (xi, top), (0, 2))
     ax.set_xticks(range(len(targets)), ["SBP", "DBP"])
     ax.set_ylabel("Mean absolute error (mmHg)")
     ax.set_title("Accuracy in test patients", loc="left")
@@ -99,17 +106,78 @@ def error_panel(ax, bands: pd.DataFrame):
     ax.legend(frameon=False, loc="upper right")
 
 
+SCATTER_RANGE = (50.0, 210.0)  # mmHg, both axes of Fig. 3(a); the 0.2-99.8th percentiles of true SBP lie inside
+
+
+def scatter_panel(ax, test: pd.DataFrame, shrinkage_path: Path):
+    """Fig. 3(a): estimate against true SBP (feature model) as a density, with the line of identity and the line of
+    the shrinkage model fitted to the calibration patients (explore_review_analyses.py)."""
+    low, high = SCATTER_RANGE
+    mesh = ax.hexbin(
+        test["sbp"],
+        test["sbp_lightgbm_mean"],
+        gridsize=60,
+        extent=(low, high, low, high),
+        cmap=DENSITY,
+        mincnt=1,
+        bins="log",
+        linewidths=0,
+    )
+    x = np.array([low, high])
+    # a light halo keeps the lines visible over the darkest bins, also in greyscale
+    halo = {"path_effects": [patheffects.withStroke(linewidth=3.2, foreground=SURFACE)]}
+    ax.plot(x, x, color=INK, linewidth=1.0, linestyle="--", label="identity", **halo)
+    model = pd.read_csv(shrinkage_path, index_col=0)["value"]
+    # bands around identity: the SD limit for cuff devices (reference only), and the 90% split conformal margin q,
+    # inside which a segment is covered
+    for offset, style, name in (
+        (CUFF_SD, ":", f"± {CUFF_SD:.0f} mmHg (SD limit, cuff devices)"),
+        (model["q"], "-.", f"± {model['q']:.1f} mmHg (90% split conformal)"),
+    ):
+        for sign in (1, -1):
+            ax.plot(
+                x,
+                x + sign * offset,
+                color=INK,
+                linewidth=0.8,
+                linestyle=style,
+                label=name if sign == 1 else None,
+                **halo,
+            )
+    ax.plot(
+        x,
+        model["intercept"] + model["slope"] * x,
+        color=INK,
+        linewidth=1.4,
+        label=f"shrinkage model, slope {model['slope']:.2f}",
+        **halo,
+    )
+    ax.set_xlim(low, high)
+    ax.set_ylim(low, high)
+    ax.set_aspect("equal")
+    ax.set_xlabel("True SBP (mmHg)")
+    ax.set_ylabel("Estimated SBP (mmHg)")
+    ax.set_title("Feature model, test patients", loc="left")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(0, -0.16), ncol=1)  # below the panel, off the data
+    return mesh
+
+
 def accuracy(results: Path, out_path: Path):
-    """Fig. 2."""
+    """Fig. 3."""
     metrics = pd.read_csv(results / "review" / "test_accuracy.csv")  # explore_review_analyses.py
     test = pd.read_parquet(
         results / "conformal" / "predictions_test.parquet", columns=["sbp", "sbp_lightgbm_mean", "sbp_cnn_mean"]
     )
-    fig, axes = plt.subplots(
-        1, 2, figsize=(PAGE_WIDTH, 2.9), constrained_layout=True, gridspec_kw={"width_ratios": [1, 1.4]}
-    )
-    mae_panel(axes[0], metrics)
-    error_panel(axes[1], error_by_true_band(test))
+    fig = plt.figure(figsize=(PAGE_WIDTH, 5.9), layout="constrained")
+    grid = fig.add_gridspec(2, 2, width_ratios=[1.1, 1], height_ratios=[1.15, 1])
+    axes = [fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[0, 1]), fig.add_subplot(grid[1, :])]
+    mesh = scatter_panel(axes[0], test, results / "review" / "shrinkage_model.csv")
+    colorbar = fig.colorbar(mesh, ax=axes[0], shrink=0.8, aspect=25, pad=0.02, label="Segments per bin (log)")
+    colorbar.outline.set_visible(False)
+    if colorbar.solids is not None:
+        colorbar.solids.set_rasterized(False)
+    mae_panel(axes[1], metrics)
+    error_panel(axes[2], error_by_true_band(test))
     save_figure(fig, out_path, panels=axes)
     plt.close(fig)
 
@@ -167,7 +235,8 @@ def draw_subgroups(ax, rows: pd.DataFrame, level: float) -> float:
         y -= 1
         for stratum, name in strata:
             r = rows[(rows.variable == variable) & (rows.stratum == stratum)].iloc[0]
-            low = 100 * r.coverage < level * 100 - SHORTFALL
+            # highlighted when the whole 95% confidence interval lies below nominal (not an arbitrary margin)
+            low = r.coverage_hi < level
             color = ORANGE if low else BLUE
             ax.hlines(y, 100 * r.coverage_lo, 100 * r.coverage_hi, color=color, linewidth=1.4)
             dot(ax, 100 * r.coverage, y, color, "s" if low else "o")  # the shortfall shows in greyscale too
@@ -203,7 +272,7 @@ def draw_subgroups(ax, rows: pd.DataFrame, level: float) -> float:
 
 
 def subgroups(results: Path, out_path: Path, level=0.9):
-    """Fig. 4."""
+    """Fig. 5."""
     rows = subgroup_coverage(results, level)
     fig, ax = plt.subplots(figsize=(PAGE_WIDTH, 4.6), constrained_layout=True)
     y = draw_subgroups(ax, rows, level)
@@ -219,7 +288,7 @@ def subgroups(results: Path, out_path: Path, level=0.9):
         fontsize=MIN_TEXT,
         color=INK,
     )
-    # the meaning of orange (more than SHORTFALL points below nominal) is given in the caption
+    # the meaning of orange (confidence interval wholly below nominal) is given in the caption
     ax.set_ylim(y + 0.6, 0.6)
     ax.set_xlim(60, 100)
     ax.set_xlabel("Patient-level coverage (%), split conformal, 95% CI")
@@ -229,7 +298,7 @@ def subgroups(results: Path, out_path: Path, level=0.9):
 
 
 def kept_error_panel(ax, vitaldb: pd.DataFrame):
-    """Fig. 7(a): error of the kept estimates (their coverage is in the supplementary data, sheet withholding)."""
+    """Fig. 8(a): error of the kept estimates (their coverage is in the supplementary data, withholding.csv)."""
     for column, name, marker in (("sd", "SD of error", "o"), ("mae", "Mean absolute error", "s")):
         ax.plot(
             100 * vitaldb.accepted,
@@ -262,7 +331,7 @@ def kept_error_panel(ax, vitaldb: pd.DataFrame):
 
 
 def kept_share_panel(ax, vitaldb: pd.DataFrame, mimic: pd.DataFrame):
-    """Right panel of Fig. 7: share kept on MIMIC-III with the thresholds set on VitalDB."""
+    """Right panel of Fig. 8: share kept on MIMIC-III with the thresholds set on VitalDB."""
     ax.plot([0, 100], [0, 100], color=AXIS, linewidth=1.0, linestyle=":")
     ax.plot(
         100 * vitaldb.accepted.to_numpy(),
@@ -283,7 +352,7 @@ def kept_share_panel(ax, vitaldb: pd.DataFrame, mimic: pd.DataFrame):
 
 
 def withholding(results: Path, out_path: Path):
-    """Fig. 7."""
+    """Fig. 8."""
     d = pd.read_csv(results / "conformal" / "selective.csv")
     d = d[(d.target == "sbp") & (d.model == "lightgbm")]
     vitaldb = d[d.dataset == "vitaldb_test"].sort_values("nominal_accept")
@@ -312,6 +381,8 @@ def supp_bland_altman(results: Path, out_path: Path):
                 ax.set_ylabel("")
             if row == 0:
                 ax.set_xlabel("")
+    if mesh is None:
+        raise AssertionError("no panel was drawn")
     colorbar = fig.colorbar(
         mesh, ax=axes, location="bottom", shrink=0.5, aspect=40, pad=0.02, label="Segments per bin (log)"
     )
@@ -322,10 +393,13 @@ def supp_bland_altman(results: Path, out_path: Path):
     plt.close(fig)
 
 
-def supp_slope_curve(results: Path, out_path: Path, residual_sd=9.6, slope=0.30):
+def supp_slope_curve(results: Path, out_path: Path):
     """Supplementary figure: under the shrinkage model, expected coverage at true SBP >= 160 and the interval width
-    against the slope b of the estimate (explore_review2_analyses.py). residual_sd and slope are this study's values."""
+    against the slope b of the estimate (explore_review2_analyses.py). The slope and residual SD of this study come
+    from results/review/shrinkage_model.csv (explore_review_analyses.py), rounded as in the curve."""
     curve = pd.read_csv(results / "review2" / "slope_curve.csv")
+    fitted = pd.read_csv(results / "review" / "shrinkage_model.csv", index_col=0)["value"]
+    residual_sd, slope = round(float(fitted["residual_sd"]), 1), round(float(fitted["slope"]), 2)
     fig, axes = plt.subplots(1, 2, figsize=(PAGE_WIDTH, 2.6), constrained_layout=True)
     for s, color, marker in ((residual_sd, BLUE, "o"), (5.0, ORANGE, "s")):
         part = curve[curve.residual_sd == s]

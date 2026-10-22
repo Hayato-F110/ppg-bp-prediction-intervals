@@ -31,7 +31,7 @@ def main():
     train = split[(split["split"] == "train") & (split["ok"] > 0)]
     rng = np.random.default_rng(config["seed"])
     rows = []
-    for case_id in rng.choice(train["caseid"].to_numpy(), size=args.cases, replace=False):
+    for case_id in rng.choice(train["caseid"].to_numpy(), size=min(args.cases, len(train)), replace=False):
         with np.load(root / "segments" / f"{case_id}.npz") as data:
             ppg = data["ppg"]
         for i in rng.choice(len(ppg), size=min(args.per_case, len(ppg)), replace=False):

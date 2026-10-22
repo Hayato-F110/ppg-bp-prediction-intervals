@@ -24,16 +24,7 @@ import pandas as pd
 from scipy.signal import resample_poly
 
 from ppg_bp.config import PROJECT_ROOT, load_config
-from ppg_bp.data.segmentation import (
-    ABP_MAX,
-    ABP_MIN,
-    MAX_BEAT_SBP_SD,
-    MIN_BEATS,
-    MIN_PULSE_PRESSURE,
-    PULSE_RATE_RANGE,
-    beat_pressures,
-    has_flatline,
-)
+from ppg_bp.data.segmentation import later_rules, segment_quantities
 from ppg_bp.data.vitaldb_source import NATIVE_FS, load_case_signals
 from ppg_bp.runlog import RunLog
 
@@ -60,24 +51,22 @@ def process_case(case_id: int) -> tuple:
     n_seg = len(ppg) // seg
     rows = []
     for i in range(n_seg):
-        p, a = ppg[i * seg : (i + 1) * seg], abp[i * seg : (i + 1) * seg]
-        # the first four checks of the main analysis (missing, pressure range, flat, few beats) are shared by all rules
-        if np.isnan(p).any() or np.isnan(a).any() or a.min() < ABP_MIN or a.max() > ABP_MAX:
+        # the first four rules of the main analysis (missing, pressure range, flat, few beats) are shared by all rules
+        _, quantities = segment_quantities(ppg[i * seg : (i + 1) * seg], abp[i * seg : (i + 1) * seg], NATIVE_FS)
+        if quantities is None:
             continue
-        if has_flatline(p, NATIVE_FS) or has_flatline(a, NATIVE_FS):
-            continue
-        peaks, sbp_beats, dbp_beats = beat_pressures(a, NATIVE_FS)
-        if len(peaks) < MIN_BEATS:
-            continue
-        rate = 60.0 / (np.median(np.diff(peaks)) / NATIVE_FS)
-        rows.append((i, rate, sbp_beats.std(), sbp_beats.mean(), dbp_beats.mean(), a.mean()))
+        rows.append(
+            (
+                i,
+                *(quantities[k] for k in ("pulse_rate", "sbp_sd", "sbp", "dbp", "mbp")),
+                later_rules(quantities) == "ok",  # the rules of the main analysis
+                later_rules(quantities, WIDE_RATE, WIDE_SD) == "ok",  # the widest rules compared
+            )
+        )
     if not rows:
         np.savez(out_path, index=np.empty(0, np.int32))
         return case_id, "ok"
-    index, rate, sd, sbp, dbp, mbp = (np.array(v) for v in zip(*rows, strict=False))
-    pressure_ok = sbp - dbp >= MIN_PULSE_PRESSURE
-    base = (rate >= PULSE_RATE_RANGE[0]) & (rate <= PULSE_RATE_RANGE[1]) & (sd <= MAX_BEAT_SBP_SD) & pressure_ok
-    wide = (rate >= WIDE_RATE[0]) & (rate <= WIDE_RATE[1]) & (sd <= WIDE_SD) & pressure_ok
+    index, rate, sd, sbp, dbp, mbp, base, wide = (np.array(v) for v in zip(*rows, strict=True))
     new = wide & ~base  # segments admitted only by wider rules; their PPG is saved
     ppg_new = np.empty((0, seg_sec * out_fs), dtype=np.float32)
     if new.any():

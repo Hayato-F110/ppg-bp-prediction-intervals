@@ -43,15 +43,15 @@ LOG = PROJECT_ROOT / CONFIG["paths"]["results"] / "logs" / "phase5_predict.log"
 log = RunLog(LOG)
 
 
-def subject_features(path: str) -> pd.DataFrame:
+def subject_features(path: str | Path) -> pd.DataFrame:
     """Reference values and features of one subject."""
-    path = Path(path)
-    with np.load(path) as data:
+    file = Path(path)
+    with np.load(file) as data:
         ppg = data["ppg"]
         table = pd.DataFrame({k: data[k] for k in ("index", "sbp", "dbp", "mbp", "pulse_rate")})
     values = np.array([list(segment_features(row, FS).values()) for row in ppg], dtype=np.float32)
     table = pd.concat([table, pd.DataFrame(values, columns=FEATURE_NAMES)], axis=1)
-    table.insert(0, "subjectid", path.stem)
+    table.insert(0, "subjectid", file.stem)
     return table
 
 
@@ -99,6 +99,8 @@ def main():
         models = train_models(CONFIG, feature_settings, quantiles, log)
         save_models(models, model_dir)
         models = load_models(model_dir, targets, quantiles)
+        if models is None:
+            raise AssertionError("the saved models could not be read back")
     # check against the saved calibration estimates (the same models as in the main analysis)
     calibration = load_split(CONFIG, "calibration").iloc[:50000]
     saved = pd.read_parquet(results / "conformal" / "predictions_calibration.parquet").iloc[:50000]

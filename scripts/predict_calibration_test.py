@@ -13,7 +13,7 @@ output: results/conformal/predictions_calibration.parquet, predictions_test.parq
 log: results/logs/phase4_predict.log
 """
 
-import sys
+import argparse
 import time
 
 import numpy as np
@@ -33,10 +33,9 @@ from ppg_bp.models.gbm import fit_lightgbm, quantile_name
 from ppg_bp.runlog import RunLog
 
 KEEP = ["caseid", "index", "subjectid", "sbp", "dbp", "mbp", "pulse_rate", "age", "sex", "sqi_template", "sqi_skewness"]
-QUICK = "--quick" in sys.argv
-LOG = PROJECT_ROOT / "results" / "logs" / ("phase4_predict_quick.log" if QUICK else "phase4_predict.log")
+LOG_DIR = PROJECT_ROOT / load_config()["paths"]["results"] / "logs"
 COLUMNS = list(FEATURE_NAMES)
-log = RunLog(LOG)
+log = RunLog(LOG_DIR / "phase4_predict.log")
 
 
 @torch.no_grad()
@@ -54,7 +53,7 @@ def cnn_predict(config, model, mean, std, table, chunk_subjects=40):
     return out
 
 
-def split_data(config, feature_settings, seed):
+def split_data(config, feature_settings, seed, quick):
     """Training segments, segments for early stopping, and the calibration and test tables."""
     train = load_split(config, "train")
     val_subjects = inner_validation_subjects(train["subjectid"], feature_settings["validation_fraction"], seed)
@@ -62,7 +61,7 @@ def split_data(config, feature_settings, seed):
     fit = sample_per_subject(train[~is_val], feature_settings["max_segments_per_subject"], seed)
     val = train[is_val]
     tables = {name: load_split(config, name) for name in ("calibration", "test")}
-    if QUICK:  # for testing; the results go to a separate folder
+    if quick:  # for testing; the results go to a separate folder
         fit, val = fit.iloc[:20000], val.iloc[:5000]
         tables = {
             name: t[t["subjectid"].isin(t["subjectid"].unique()[:12])].reset_index(drop=True)
@@ -127,15 +126,20 @@ def add_cnn(outputs, config, tables, targets, quantiles) -> None:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quick", action="store_true", help="small run for testing; results go to a quick/ folder")
+    args = parser.parse_args()
     config = load_config()
     settings = load_settings("conformal")
     feature_settings = load_settings("feature_models")
     seed = config["seed"]
-    out_dir = PROJECT_ROOT / config["paths"]["results"] / "conformal" / ("quick" if QUICK else "")
+    out_dir = PROJECT_ROOT / config["paths"]["results"] / "conformal" / ("quick" if args.quick else "")
     out_dir.mkdir(parents=True, exist_ok=True)
-    LOG.parent.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    if args.quick:
+        log.path = LOG_DIR / "phase4_predict_quick.log"
     log("=== start")
-    fit, val, tables = split_data(config, feature_settings, seed)
+    fit, val, tables = split_data(config, feature_settings, seed, args.quick)
     outputs = {name: table[KEEP].copy() for name, table in tables.items()}
     trees = add_lightgbm(outputs, fit, val, tables, feature_settings, settings["quantiles"], seed)
     trees.to_csv(out_dir / "lightgbm_trees.csv", index=False, float_format="%.2f")

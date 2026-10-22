@@ -15,29 +15,20 @@ output: results/conformal/coverage.csv (overall and by stratum), corrections.csv
         subject_coverage.parquet
 """
 
-import sys
+import argparse
 
 import numpy as np
 import pandas as pd
 
 from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
-from ppg_bp.conformal.core import (
-    calibrate,
-    cqr_interval,
-    cqr_scores,
-    split_interval,
-    split_scores,
-)
 from ppg_bp.conformal.pipeline import (
     METHODS,
     band,
     intervals,
-    quantile_column,
     sqi_tertile,
 )
 from ppg_bp.evaluation.coverage import evaluate, per_subject
 
-QUICK = "--quick" in sys.argv
 MODELS = ("lightgbm", "cnn")
 TARGETS = ("sbp", "dbp", "mbp")
 
@@ -59,19 +50,7 @@ def add_columns(table, settings, cuts, bmi):
     return table
 
 
-def draw_interval(chosen, test, method, target, model, level, quantiles):
-    """Calibrate on the chosen patients only and return (lower, upper, corrections) for the test patients."""
-    if method == "split":
-        q = calibrate(split_scores(chosen[target], chosen[f"{target}_{model}_mean"]), chosen["subjectid"], 1 - level)
-        return (*split_interval(test[f"{target}_{model}_mean"], q), q)
-    q_lo, q_hi = quantiles
-    lo, hi = chosen[quantile_column(target, model, q_lo)], chosen[quantile_column(target, model, q_hi)]
-    q = calibrate(cqr_scores(chosen[target], np.minimum(lo, hi), np.maximum(lo, hi)), chosen["subjectid"], 1 - level)
-    lo_t, hi_t = test[quantile_column(target, model, q_lo)], test[quantile_column(target, model, q_hi)]
-    return (*cqr_interval(np.minimum(lo_t, hi_t), np.maximum(lo_t, hi_t), q), q)
-
-
-def calibration_size_experiment(cal, test, settings, seed):
+def calibration_size_experiment(cal, test, settings, seed, repeats):
     """Vary the number of calibration patients and record the patient-level coverage in the test patients
     (analysis plan, Section 5; SBP, nominal 90%, LightGBM)."""
     target, model, level = settings["primary_target"], "lightgbm", settings["primary_level"]
@@ -79,13 +58,12 @@ def calibration_size_experiment(cal, test, settings, seed):
     subjects = cal["subjectid"].unique()
     by_subject = dict(iter(cal.groupby("subjectid")))
     rows = []
-    repeats = 5 if QUICK else settings["calibration_repeats"]
     for requested in settings["calibration_sizes"]:
         size = min(requested, len(subjects))
         for repeat in range(1 if size == len(subjects) else repeats):
             chosen = pd.concat([by_subject[s] for s in rng.choice(subjects, size=size, replace=False)])
             for method in ("split", "cqr"):
-                lower, upper, q = draw_interval(chosen, test, method, target, model, level, settings["levels"][level])
+                lower, upper, q = intervals(chosen, test, target, model, method, level, settings)
                 result = per_subject(test[target], lower, upper, test["subjectid"])
                 rows.append(
                     {
@@ -143,11 +121,14 @@ def evaluate_all(cal, test, settings, n_boot, seed):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--quick", action="store_true", help="small run for testing; reads and writes a quick/ folder")
+    args = parser.parse_args()
     config = load_config()
     settings = load_settings("conformal")
     cuts = load_settings("sqi_tertiles")["sqi_template"]
     seed = config["seed"]
-    out_dir = PROJECT_ROOT / config["paths"]["results"] / "conformal" / ("quick" if QUICK else "")
+    out_dir = PROJECT_ROOT / config["paths"]["results"] / "conformal" / ("quick" if args.quick else "")
     bmi = pd.read_csv(PROJECT_ROOT / config["paths"]["processed"] / "vitaldb" / "split.csv", usecols=["caseid", "bmi"])
     cal = add_columns(pd.read_parquet(out_dir / "predictions_calibration.parquet"), settings, cuts, bmi)
     test = add_columns(pd.read_parquet(out_dir / "predictions_test.parquet"), settings, cuts, bmi)
@@ -158,12 +139,13 @@ def main():
         f"test {test['subjectid'].nunique()} patients {len(test)} segments",
         flush=True,
     )
-    n_boot = 100 if QUICK else settings["bootstrap"]
+    n_boot = 100 if args.quick else settings["bootstrap"]
     coverage, corrections, subjects = evaluate_all(cal, test, settings, n_boot, seed)
     coverage.to_csv(out_dir / "coverage.csv", index=False, float_format="%.6f")
     corrections.to_csv(out_dir / "corrections.csv", index=False, float_format="%.6f")
     subjects.to_parquet(out_dir / "subject_coverage.parquet", index=False)
-    calibration_size_experiment(cal, test, settings, seed).to_csv(
+    repeats = 5 if args.quick else settings["calibration_repeats"]
+    calibration_size_experiment(cal, test, settings, seed, repeats).to_csv(
         out_dir / "calibration_size.csv", index=False, float_format="%.6f"
     )
     print("done", flush=True)

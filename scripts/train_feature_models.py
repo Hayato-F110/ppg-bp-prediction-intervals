@@ -8,7 +8,6 @@ output: results/feature_models/validation_metrics.csv, feature_importance.csv, v
 
 import argparse
 
-import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.impute import SimpleImputer
@@ -20,6 +19,7 @@ from ppg_bp.config import PROJECT_ROOT, load_config, load_settings
 from ppg_bp.evaluation.metrics import point_metrics, subject_level_mae
 from ppg_bp.features.extract import FEATURE_NAMES
 from ppg_bp.models.dataset import inner_validation_subjects, load_split, sample_per_subject
+from ppg_bp.models.gbm import fit_lightgbm
 
 DEMOGRAPHICS = ["age", "sex_male"]
 
@@ -31,17 +31,7 @@ def fit_predict(name, params, x_fit, y_fit, x_val, y_val, seed):
     if name == "linear":
         model = make_pipeline(SimpleImputer(strategy="median", add_indicator=True), StandardScaler(), Ridge(alpha=1.0))
         return model.fit(x_fit, y_fit).predict(x_val), None
-    params = dict(params)
-    rounds = params.pop("early_stopping_rounds")
-    model = lgb.LGBMRegressor(**params, random_state=seed)
-    model.fit(
-        x_fit,
-        y_fit,
-        eval_X=x_val,
-        eval_y=y_val,
-        eval_metric="l1",
-        callbacks=[lgb.early_stopping(rounds, verbose=False)],
-    )
+    model = fit_lightgbm(params, "regression", None, x_fit, y_fit, x_val, y_val, seed, eval_metric="l1")
     gain = pd.Series(model.booster_.feature_importance("gain"), index=x_fit.columns)
     return model.predict(x_val), gain / gain.sum()
 

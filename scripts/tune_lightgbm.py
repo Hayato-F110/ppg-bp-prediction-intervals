@@ -20,7 +20,7 @@ from ppg_bp.features.extract import FEATURE_NAMES
 from ppg_bp.models.dataset import inner_validation_subjects, load_split, sample_per_subject
 from ppg_bp.runlog import RunLog
 
-LOG = PROJECT_ROOT / "results" / "logs" / "tune_lightgbm.log"
+LOG = PROJECT_ROOT / load_config()["paths"]["results"] / "logs" / "tune_lightgbm.log"
 
 
 log = RunLog(LOG)

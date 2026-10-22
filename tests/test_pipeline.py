@@ -7,11 +7,15 @@ import pytest
 from ppg_bp.conformal.pipeline import (
     METHODS,
     band,
+    band_labels,
+    band_names,
+    coverage_rows,
     intervals,
     quantile_column,
     sqi_tertile,
+    with_offset,
 )
-from ppg_bp.evaluation.coverage import per_subject
+from ppg_bp.evaluation.coverage import paired_difference, per_subject
 from ppg_bp.models.gbm import output_labels, quantile_name
 
 SETTINGS = {
@@ -72,3 +76,46 @@ def test_fixed_width_intervals_miss_high_values_from_below():
     covered_mid = ((test["sbp"] >= lower) & (test["sbp"] <= upper))[(test["sbp"].between(110, 126)).to_numpy()].mean()
     assert above > 0.3 and below < 0.01
     assert covered_mid > 0.95
+
+
+def test_coverage_rows_puts_the_labels_first():
+    y = np.array([100.0, 150.0, 170.0, 110.0])
+    rows = coverage_rows(y, y - 5, y + 5, ["a", "a", "b", "b"], [120, 160], 10, 0, dataset="x", method="split")
+    assert rows.columns[:2].tolist() == ["dataset", "method"]
+    assert set(rows["dataset"]) == {"x"}
+    assert rows.set_index("stratum").loc["all", "coverage"] == 1.0
+
+
+def test_with_offset_adds_the_mean_error_of_the_first_segments_and_drops_them():
+    table = pd.DataFrame(
+        {
+            "subjectid": [2, 1, 1, 1, 2],
+            "caseid": [20, 10, 10, 10, 20],
+            "index": [1, 2, 0, 1, 0],
+            "sbp": [130.0, 120.0, 110.0, 114.0, 140.0],
+            "sbp_lightgbm_mean": [100.0, 100.0, 100.0, 100.0, 120.0],
+            "sbp_lightgbm_q050": [90.0, 90.0, 90.0, 90.0, 110.0],
+        }
+    )
+    out = with_offset(table, n_first=2)
+    # patient 1: errors of segments 0 and 1 are 10 and 14, mean 12; patient 2: error of segment 0 is 20, mean 20
+    assert out[["subjectid", "index"]].to_numpy().tolist() == [[1, 2]]  # patient 2 has no later segment and drops out
+    assert out["sbp_lightgbm_mean"].tolist() == [112.0]
+    assert out["sbp_lightgbm_q050"].tolist() == [102.0]
+    assert out["sbp"].tolist() == [120.0]
+
+
+def test_paired_difference_keeps_the_pairs_of_each_patient():
+    a = np.array([1.0, 1.0, 0.0, 1.0, 1.0, 1.0])
+    b = np.array([0.0, 1.0, 0.0, 0.0, 1.0, 1.0])
+    result = paired_difference(a, b, ["p", "p", "q", "q", "r", "r"], n_boot=200, seed=0)
+    assert result["patients"] == 3
+    assert result["difference"] == pytest.approx((0.5 + 0.5 + 0.0) / 3)
+    assert result["ci_low"] <= result["difference"] <= result["ci_high"]
+
+
+def test_band_names_and_labels_follow_the_cut_points():
+    edges = SETTINGS["strata"]["sbp"]
+    assert band_names(edges) == ["<90", "90–<100", "100–<120", "120–<140", "140–<160", "≥160"]
+    assert band_labels(edges) == ["<90", "90–99", "100–119", "120–139", "140–159", "≥160"]
+    assert band_labels(SETTINGS["strata"]["dbp"]) == ["<50", "50–59", "60–69", "70–79", "80–89", "≥90"]

@@ -289,8 +289,8 @@ Group-wise (PPG pulse rate): calibrated within bands of the pulse rate measured 
 |---|---|---|---|---|---|
 | Split conformal | VitalDB test | 90.2 (89.1–91.2) | 73.4 (70.6–76.0) | 26.5 (23.9–29.2) | 55.7 |
 | Split conformal | MIMIC-III | 68.9 (65.4–72.6) | 32.1 (25.5–39.0) | 6.0 (3.4–9.1) | 55.7 |
-| Group-wise (PPG pulse rate) | VitalDB test | 93.1 (92.2–93.9) | 81.4 (79.2–83.5) | 42.2 (39.4–45.1) | 56.4 |
-| Group-wise (PPG pulse rate) | MIMIC-III | 77.9 (74.9–81.2) | 58.0 (50.9–65.1) | 21.9 (16.6–27.8) | 70.6 |
+| Group-wise (PPG pulse rate) | VitalDB test | 92.9 (92.1–93.8) | 80.9 (78.7–82.9) | 42.1 (39.2–44.9) | 56.4 |
+| Group-wise (PPG pulse rate) | MIMIC-III | 77.9 (74.8–81.2) | 57.9 (50.9–65.1) | 21.9 (16.6–27.8) | 70.6 |
 | Shrinkage corrected, split | VitalDB test | 90.4 (89.4–91.4) | 91.6 (90.1–93.1) | 76.1 (73.6–78.3) | 102.7 |
 | Shrinkage corrected, split | MIMIC-III | 79.3 (76.7–82.0) | 65.2 (58.3–71.9) | 57.7 (50.7–64.6) | 102.7 |
 
@@ -370,3 +370,120 @@ Effective calibration patients: Kish effective sample size of the calibration pa
 | seed3 | 13.4 | −2.0 ± 17.3 |
 | seed4 | 13.3 | −0.7 ± 17.3 |
 | seed5 | 13.4 | −1.0 ± 17.3 |
+
+## Table S14. Mean absolute error with 95% confidence intervals, VitalDB test patients (mmHg)
+
+Confidence intervals from 2,000 bootstrap resamples of patients.
+
+| Target | Model | MAE (95% CI) |
+|---|---|---|
+| SBP | Training median | 15.6 (15.3–16.0) |
+| SBP | Feature model | 13.1 (12.7–13.6) |
+| SBP | Waveform model | 13.0 (12.5–13.5) |
+| DBP | Training median | 10.0 (9.7–10.4) |
+| DBP | Feature model | 8.5 (8.2–8.8) |
+| DBP | Waveform model | 8.5 (8.1–8.8) |
+| MBP | Training median | 12.1 (11.8–12.4) |
+| MBP | Feature model | 9.7 (9.4–10.0) |
+| MBP | Waveform model | 9.6 (9.2–10.0) |
+
+## Table S15. Nominal 90% intervals sorted against 140 mmHg (true SBP ≥ 140 mmHg) and 65 mmHg (true MBP < 65 mmHg)
+
+Shares of segments, averaged first within each patient. Exploratory.
+
+| Dataset | Model | Method | SBP ≥ 140: wholly ≥ 140 (%) | SBP ≥ 140: contains 140 (%) | SBP ≥ 140: wholly < 140 (%) | MBP < 65: wholly < 65 (%) | MBP < 65: contains 65 (%) | MBP < 65: wholly ≥ 65 (%) |
+|---|---|---|---|---|---|---|---|---|
+| VitalDB test | Feature | Split conformal | 1.0 | 93.5 | 5.5 | 0.0 | 91.4 | 8.6 |
+| VitalDB test | Feature | CQR | 0.0 | 95.4 | 4.6 | 0.0 | 93.8 | 6.2 |
+| VitalDB test | Waveform | Split conformal | 1.8 | 92.0 | 6.3 | 0.0 | 91.0 | 9.0 |
+| VitalDB test | Waveform | CQR | 0.0 | 94.0 | 6.0 | 0.0 | 93.1 | 6.9 |
+| MIMIC-III | Feature | Split conformal | 0.0 | 75.0 | 25.0 | 0.0 | 60.1 | 39.9 |
+| MIMIC-III | Feature | CQR | 0.0 | 98.1 | 1.9 | 0.0 | 88.6 | 11.4 |
+| MIMIC-III | Waveform | Split conformal | 0.0 | 77.8 | 22.2 | 0.0 | 56.4 | 43.6 |
+| MIMIC-III | Waveform | CQR | 0.0 | 83.5 | 16.5 | 0.0 | 76.1 | 23.9 |
+
+## Table S16. Distribution of the true SBP and of the coverage of each patient
+
+Nominal 90% SBP intervals, feature model. Aggregate shares only.
+
+**(a) True SBP, share of segments per 5 mmHg**
+
+| True SBP (mmHg) | VitalDB test (% of segments) | MIMIC-III (% of segments) |
+|---|---|---|
+| 40–<45 | 0.00 | 0.00 |
+| 45–<50 | 0.00 | 0.00 |
+| 50–<55 | 0.00 | 0.00 |
+| 55–<60 | 0.01 | 0.02 |
+| 60–<65 | 0.04 | 0.15 |
+| 65–<70 | 0.12 | 0.32 |
+| 70–<75 | 0.33 | 0.67 |
+| 75–<80 | 0.77 | 1.33 |
+| 80–<85 | 1.76 | 1.66 |
+| 85–<90 | 3.23 | 2.75 |
+| 90–<95 | 5.29 | 3.62 |
+| 95–<100 | 7.33 | 4.65 |
+| 100–<105 | 9.36 | 6.08 |
+| 105–<110 | 9.99 | 7.13 |
+| 110–<115 | 10.21 | 8.41 |
+| 115–<120 | 9.97 | 8.70 |
+| 120–<125 | 9.23 | 7.75 |
+| 125–<130 | 7.88 | 7.64 |
+| 130–<135 | 6.73 | 7.26 |
+| 135–<140 | 5.16 | 5.84 |
+| 140–<145 | 3.84 | 4.75 |
+| 145–<150 | 2.76 | 4.60 |
+| 150–<155 | 1.90 | 3.47 |
+| 155–<160 | 1.30 | 2.95 |
+| 160–<165 | 0.90 | 2.40 |
+| 165–<170 | 0.62 | 2.03 |
+| 170–<175 | 0.38 | 1.54 |
+| 175–<180 | 0.27 | 1.43 |
+| 180–<185 | 0.20 | 1.38 |
+| 185–<190 | 0.14 | 0.64 |
+| 190–<195 | 0.09 | 0.17 |
+| 195–<200 | 0.05 | 0.22 |
+| 200–<205 | 0.04 | 0.16 |
+| 205–<210 | 0.02 | 0.06 |
+| 210–<215 | 0.02 | 0.06 |
+| 215–<220 | 0.01 | 0.08 |
+| 220–<225 | 0.01 | 0.02 |
+| 225–<230 | 0.01 | 0.01 |
+| 230–<235 | 0.00 | 0.01 |
+| 235–<240 | 0.00 | 0.01 |
+| 240–<245 | 0.00 | 0.01 |
+| 245–<250 | 0.00 | 0.01 |
+| 250–<255 | 0.00 | 0.01 |
+| 255–<260 | 0.00 | 0.01 |
+| 260–<265 | 0.00 | 0.00 |
+| 265–<270 | 0.00 | 0.00 |
+| 270–<275 | 0.00 | 0.00 |
+| 275–<280 | 0.00 | 0.00 |
+| 280–<285 | 0.00 | 0.00 |
+| 285–<290 | 0.00 | 0.00 |
+| 290–<295 | 0.00 | 0.00 |
+| 295–300 | 0.00 | 0.00 |
+
+**(b) Coverage of each patient, share of patients per 5 percentage points**
+
+| Coverage of the patient (%) | VitalDB test, Split conformal (% of patients) | VitalDB test, CQR (% of patients) | MIMIC-III, Split conformal (% of patients) | MIMIC-III, CQR (% of patients) |
+|---|---|---|---|---|
+| 0–<5 | 0.0 | 0.0 | 11.3 | 4.1 |
+| 5–<10 | 0.0 | 0.0 | 2.4 | 1.7 |
+| 10–<15 | 0.5 | 0.0 | 1.9 | 1.0 |
+| 15–<20 | 0.3 | 0.3 | 2.2 | 0.7 |
+| 20–<25 | 0.0 | 0.6 | 2.2 | 1.0 |
+| 25–<30 | 0.0 | 0.0 | 1.4 | 1.7 |
+| 30–<35 | 0.2 | 0.3 | 2.2 | 1.4 |
+| 35–<40 | 0.5 | 0.2 | 1.2 | 0.2 |
+| 40–<45 | 0.8 | 0.3 | 1.7 | 1.4 |
+| 45–<50 | 0.5 | 0.3 | 1.9 | 1.4 |
+| 50–<55 | 0.3 | 0.3 | 2.2 | 1.7 |
+| 55–<60 | 1.1 | 0.8 | 2.2 | 1.0 |
+| 60–<65 | 1.3 | 2.2 | 1.2 | 0.7 |
+| 65–<70 | 1.4 | 1.1 | 2.4 | 0.7 |
+| 70–<75 | 2.2 | 2.2 | 3.1 | 1.9 |
+| 75–<80 | 4.5 | 5.3 | 4.6 | 3.8 |
+| 80–<85 | 6.2 | 4.8 | 4.3 | 2.4 |
+| 85–<90 | 10.0 | 10.5 | 4.3 | 3.1 |
+| 90–<95 | 21.9 | 22.8 | 7.0 | 5.8 |
+| 95–100 | 48.3 | 47.8 | 40.4 | 64.2 |
