@@ -1,6 +1,6 @@
 [project]
 name = "ppg-bp-prediction-intervals"
-version = "1.2.0"
+version = "1.2.1"
 description = "Prediction intervals for calibration-free cuffless blood pressure from the PPG: patient-level coverage within and across datasets"
 requires-python = ">=3.14,<3.15"
 dependencies = [
@@ -36,7 +36,7 @@ paper = [
 known_first_party = ["ppg_bp"]
 # paper_tools: private tools for the manuscript, not exported; their imports are local modules or tools for the
 # former ABE version (pypandoc, pymupdf, typst, openpyxl), to be declared if that version is used again
-extend_exclude = ["paper_tools", ".worktrees"]
+extend_exclude = ["paper_tools", ".worktrees", "public"]
 
 [tool.deptry.per_rule_ignores]
 # pyarrow is not imported, but pandas needs it to read and write the parquet files
@@ -56,12 +56,12 @@ default-groups = ["dev"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# git worktrees (.worktrees/) hold copies of the tests; they are skipped also when pytest is given a folder
-norecursedirs = [".*", "*.egg", "build", "dist", "node_modules", "venv", ".worktrees"]
+# git worktrees (.worktrees/) and the public repository (public/) hold copies of the tests; skip them
+norecursedirs = [".*", "*.egg", "build", "dist", "node_modules", "venv", ".worktrees", "public"]
 
 [tool.ruff]
 line-length = 120
-extend-exclude = [".worktrees"]  # git worktrees: copies of this repository
+extend-exclude = [".worktrees", "public"]  # git worktrees and the public repository: copies of this code
 target-version = "py314"
 
 [tool.ruff.lint]
@@ -84,7 +84,7 @@ max-positional-args = 8
 
 [tool.pyright]
 include = ["src", "scripts", "tests"]
-exclude = ["**/__pycache__", "**/.*", ".worktrees"]
+exclude = ["**/__pycache__", "**/.*", ".worktrees", "public"]
 typeCheckingMode = "standard"
 pythonVersion = "3.14"
 # The analysis scripts index pandas tables in ways whose result type pyright cannot infer without pandas stubs

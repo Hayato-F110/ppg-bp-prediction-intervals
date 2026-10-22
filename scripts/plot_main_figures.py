@@ -82,7 +82,7 @@ def mae_panel(ax, metrics: pd.DataFrame):
     ax.set_ylabel("Mean absolute error (mmHg)")
     ax.set_title("Accuracy in test patients", loc="left")
     ax.grid(axis="x", visible=False)
-    ax.set_ylim(0, 19)
+    ax.set_ylim(0, 24)  # room above the value labels, so that the legend does not cover them
     ax.legend(frameon=False, loc="upper right")
 
 
